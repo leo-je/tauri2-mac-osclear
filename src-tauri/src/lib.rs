@@ -84,16 +84,81 @@ async fn get_memory_info() -> Result<MemoryInfo, String> {
 
 #[tauri::command]
 async fn free_memory() -> Result<String, String> {
-    let output = Command::new("purge")
-        .output()
-        .map_err(|e| format!("Failed to execute purge: {}", e))?;
+    let memory_info = get_memory_info_internal()?;
 
-    if output.status.success() {
-        Ok("内存清理成功".to_string())
+    let message = if memory_info.pressure > 80.0 {
+        format!(
+            "当前内存使用率较高 ({:.1}%)。建议：\n1. 关闭不使用的应用程序\n2. 浏览器关闭不用的标签页\n3. 重启一些占用内存较多的应用\n\n总内存: {}\n已用: {}\n可用: {}",
+            memory_info.pressure,
+            format_size_static(memory_info.total),
+            format_size_static(memory_info.used),
+            format_size_static(memory_info.free)
+        )
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Purge command failed: {}", stderr))
+        format!(
+            "当前内存状态良好 ({:.1}%)。\n\n总内存: {}\n已用: {}\n可用: {}",
+            memory_info.pressure,
+            format_size_static(memory_info.total),
+            format_size_static(memory_info.used),
+            format_size_static(memory_info.free)
+        )
+    };
+
+    Ok(message)
+}
+
+fn get_memory_info_internal() -> Result<MemoryInfo, String> {
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
+    );
+    sys.refresh_all();
+
+    let total = sys.total_memory();
+    let used = sys.used_memory();
+    let free = sys.free_memory();
+
+    let pressure = if total > 0 {
+        (used as f64 / total as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let vm_stat_output = Command::new("vm_stat")
+        .output()
+        .map_err(|e| format!("Failed to run vm_stat: {}", e))?;
+
+    let vm_stat = String::from_utf8_lossy(&vm_stat_output.stdout);
+    let mut cached = 0u64;
+
+    for line in vm_stat.lines() {
+        if line.contains("Pages purgeable") || line.contains("Pages free") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                if let Ok(pages) = parts[2].trim_end_matches('.').parse::<u64>() {
+                    cached += pages * 4096;
+                }
+            }
+        }
     }
+
+    Ok(MemoryInfo {
+        total,
+        used,
+        free,
+        cached,
+        pressure,
+    })
+}
+
+fn format_size_static(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let k = 1024.0;
+    let sizes = ["B", "KB", "MB", "GB", "TB"];
+    let i = (bytes as f64).log(k).floor() as usize;
+    let size = bytes as f64 / k.powi(i as i32);
+    format!("{:.2} {}", size, sizes[i.min(4)])
 }
 
 #[tauri::command]
