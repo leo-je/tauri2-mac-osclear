@@ -59,6 +59,18 @@ body {
   color: #e0e0e0;
   overflow-x: hidden;
 }
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+::-webkit-scrollbar-track {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none;
+}
 </style>
 
 <style scoped>
