@@ -1,0 +1,28 @@
+{
+  "name": "macos-cleaner",
+  "version": "1.0.0",
+  "description": "macOS System Cleaner Tool",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
+    "@types/node": "^25.5.0",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1",
+    "vue-tsc": "^3.2.6"
+  }
+}

@@ -1,0 +1,57 @@
+import { ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import type { MemoryInfo } from '../types'
+
+export function useMemory() {
+  const memoryInfo = ref<MemoryInfo>({
+    total: 0,
+    used: 0,
+    free: 0,
+    cached: 0,
+    pressure: 0
+  })
+  const isLoading = ref(false)
+  const isFreeing = ref(false)
+
+  const fetchMemoryInfo = async () => {
+    isLoading.value = true
+    try {
+      const info = await invoke<MemoryInfo>('get_memory_info')
+      memoryInfo.value = info
+    } catch (error) {
+      console.error('Failed to fetch memory info:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const freeMemory = async (): Promise<string> => {
+    isFreeing.value = true
+    try {
+      const result = await invoke<string>('free_memory')
+      await fetchMemoryInfo()
+      return result
+    } catch (error) {
+      throw error
+    } finally {
+      isFreeing.value = false
+    }
+  }
+
+  const formatSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  return {
+    memoryInfo,
+    isLoading,
+    isFreeing,
+    fetchMemoryInfo,
+    freeMemory,
+    formatSize
+  }
+}
