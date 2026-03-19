@@ -91,6 +91,16 @@ export function useJunkCleaner() {
     }
   }
 
+  const selectAll = () => {
+    selectedItems.value = scanResult.value.items.map(item => item.path)
+    selectedCategories.value = scanResult.value.categories.map(([cat]) => cat)
+  }
+
+  const deselectAll = () => {
+    selectedItems.value = []
+    selectedCategories.value = []
+  }
+
   const formatSize = (bytes: number): string => {
     if (bytes === 0) return '0 B'
     const k = 1024
@@ -112,6 +122,8 @@ export function useJunkCleaner() {
     cleanSelected,
     toggleItem,
     toggleCategory,
+    selectAll,
+    deselectAll,
     formatSize
   }
 }

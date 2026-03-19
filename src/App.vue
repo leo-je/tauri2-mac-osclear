@@ -1,47 +1,43 @@
 <template>
-  <div class="app-container">
-    <header class="header">
-      <h1>macOS 系统清理工具</h1>
-      <p class="subtitle">一键清理内存与系统垃圾</p>
-    </header>
+  <n-config-provider :theme="darkTheme">
+    <n-message-provider>
+      <n-dialog-provider>
+        <div class="app-container">
+          <header class="app-header">
+            <div class="header-content">
+              <h1>🧹 macOS Cleaner</h1>
+              <p class="subtitle">系统清理与优化工具</p>
+            </div>
+          </header>
 
-    <main class="main-content">
-      <MemoryCard @success="showSuccess" @error="showError" />
-      <JunkCleanerCard @success="showSuccess" @error="showError" />
-    </main>
+          <main class="main-content">
+            <n-tabs type="segment" animated placement="top" v-model:value="activeTab">
+              <n-tab-pane name="memory" tab="💾 内存清理">
+                <MemoryCard />
+              </n-tab-pane>
 
-    <div v-if="notification" :class="['notification', notification.type]">
-      {{ notification.message }}
-    </div>
-  </div>
+              <n-tab-pane name="junk" tab="🗑️ 垃圾清理">
+                <JunkCleanerCard />
+              </n-tab-pane>
+            </n-tabs>
+          </main>
+
+          <footer class="app-footer">
+            <p>macOS Cleaner v1.0.0</p>
+          </footer>
+        </div>
+      </n-dialog-provider>
+    </n-message-provider>
+  </n-config-provider>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { darkTheme, NConfigProvider, NTabs, NTabPane, NMessageProvider, NDialogProvider } from 'naive-ui'
 import MemoryCard from './components/MemoryCard.vue'
 import JunkCleanerCard from './components/JunkCleanerCard.vue'
 
-interface Notification {
-  type: 'success' | 'error'
-  message: string
-}
-
-const notification = ref<Notification | null>(null)
-
-const showNotification = (type: 'success' | 'error', message: string) => {
-  notification.value = { type, message }
-  setTimeout(() => {
-    notification.value = null
-  }, 3000)
-}
-
-const showSuccess = (message: string) => {
-  showNotification('success', message)
-}
-
-const showError = (message: string) => {
-  showNotification('error', message)
-}
+const activeTab = ref<'memory' | 'junk'>('memory')
 </script>
 
 <style>
@@ -51,178 +47,85 @@ const showError = (message: string) => {
   box-sizing: border-box;
 }
 
+html, body, #app {
+  height: 100%;
+  width: 100%;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   min-height: 100vh;
-  color: #333;
+  color: #e0e0e0;
+  overflow-x: hidden;
 }
 </style>
 
 <style scoped>
 .app-container {
-  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 20px;
 }
 
-.header {
+.app-header {
   text-align: center;
-  margin-bottom: 30px;
-  color: white;
+  padding: 30px 0;
+  margin-bottom: 20px;
 }
 
-.header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
+.header-content h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #00d9ff, #00ff88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 8px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  letter-spacing: -1px;
 }
 
 .subtitle {
   font-size: 1.1rem;
-  opacity: 0.9;
+  color: #8892b0;
+  letter-spacing: 2px;
 }
 
 .main-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.card {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 20px;
   padding: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+.app-footer {
+  text-align: center;
+  padding: 20px 0;
+  color: #5a6a8a;
+  font-size: 0.85rem;
 }
 
-.card-header h2 {
-  font-size: 1.5rem;
-  color: #1a1a2e;
+:deep(.n-tabs) {
+  height: 100%;
 }
 
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
+:deep(.n-tab-pane) {
+  padding: 20px 0;
+}
+
+:deep(.n-tabs-tab) {
   font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  padding: 12px 24px;
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-secondary {
-  background: #f5f7fa;
-  color: #667eea;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #667eea;
-  color: white;
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
-}
-
-.icon-btn {
-  padding: 8px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #666;
-}
-
-.icon-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.icon-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.notification {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 16px 32px;
-  border-radius: 12px;
-  font-weight: 600;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-  z-index: 1000;
-  animation: slideUp 0.3s ease;
-}
-
-.notification.success {
-  background: #27ae60;
-  color: white;
-}
-
-.notification.error {
-  background: #e74c3c;
-  color: white;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@media (max-width: 768px) {
-  .header h1 {
-    font-size: 1.8rem;
-  }
-
-  .app-container {
-    padding: 16px;
-  }
-
-  .card {
-    padding: 16px;
-  }
+:deep(.n-card) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>
