@@ -133,17 +133,29 @@ const handleNavigate = (view: string) => {
   box-sizing: border-box;
 }
 
-html, body, #app {
+html {
   height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  background: #1a1a2e;
+  background-image: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   min-height: 100vh;
+  height: 100%;
+  width: 100%;
   color: #e0e0e0;
-  overflow-x: hidden;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #1a1a2e;
+  background-image: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
 
 ::-webkit-scrollbar {

@@ -28,14 +28,19 @@ const handleNavigate = (view: string) => {
 <style scoped>
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
 
 .main-content {
   flex: 1;
   margin-left: 220px;
-  min-height: 100vh;
+  height: 100vh;
+  width: calc(100% - 220px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .content-wrapper {
@@ -43,6 +48,7 @@ const handleNavigate = (view: string) => {
   max-width: 900px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease;
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
