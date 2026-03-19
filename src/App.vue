@@ -2,42 +2,128 @@
   <n-config-provider :theme="darkTheme">
     <n-message-provider>
       <n-dialog-provider>
-        <div class="app-container">
-          <header class="app-header">
-            <div class="header-content">
-              <h1>🧹 macOS Cleaner</h1>
-              <p class="subtitle">系统清理与优化工具</p>
+        <AppLayout @navigate="handleNavigate">
+          <!-- Dashboard View -->
+          <div v-if="currentView === 'dashboard'" class="dashboard-view">
+            <div class="page-header">
+              <h1 class="page-title">系统总览</h1>
+              <p class="page-subtitle">查看系统状态和快速清理</p>
             </div>
-          </header>
 
-          <main class="main-content">
-            <n-tabs type="segment" animated placement="top" v-model:value="activeTab">
-              <n-tab-pane name="memory" tab="💾 内存清理">
-                <MemoryCard />
-              </n-tab-pane>
+            <div class="dashboard-grid">
+              <div class="overview-card memory-card">
+                <div class="card-header">
+                  <div class="card-icon memory">
+                    <MemoryIcon />
+                  </div>
+                  <div class="card-info">
+                    <span class="card-title">内存状态</span>
+                    <span class="card-subtitle">实时监控</span>
+                  </div>
+                </div>
+                <div class="card-stat">
+                  <span class="stat-value">{{ memoryPressure }}%</span>
+                  <span class="stat-label">使用率</span>
+                </div>
+                <n-progress
+                  type="line"
+                  :percentage="memoryPressure"
+                  :show-indicator="false"
+                  :height="6"
+                  :border-radius="3"
+                  :color="getPressureColor()"
+                  rail-color="rgba(255,255,255,0.1)"
+                />
+                <n-button
+                  type="primary"
+                  size="small"
+                  class="card-action"
+                  @click="currentView = 'memory'"
+                >
+                  清理内存
+                </n-button>
+              </div>
 
-              <n-tab-pane name="junk" tab="🗑️ 垃圾清理">
-                <JunkCleanerCard />
-              </n-tab-pane>
-            </n-tabs>
-          </main>
+              <div class="overview-card junk-card">
+                <div class="card-header">
+                  <div class="card-icon junk">
+                    <TrashIcon />
+                  </div>
+                  <div class="card-info">
+                    <span class="card-title">垃圾文件</span>
+                    <span class="card-subtitle">系统清理</span>
+                  </div>
+                </div>
+                <div class="card-stat">
+                  <span class="stat-value">—</span>
+                  <span class="stat-label">待扫描</span>
+                </div>
+                <div class="card-placeholder">
+                  点击下方按钮开始扫描
+                </div>
+                <n-button
+                  type="primary"
+                  size="small"
+                  class="card-action"
+                  @click="currentView = 'junk'"
+                >
+                  开始扫描
+                </n-button>
+              </div>
+            </div>
 
-          <footer class="app-footer">
-            <p>macOS Cleaner v1.0.0</p>
-          </footer>
-        </div>
+            <div class="quick-actions">
+              <h3 class="section-title">快速操作</h3>
+              <div class="action-grid">
+                <div class="action-item" @click="currentView = 'memory'">
+                  <ZapIcon />
+                  <span>一键清理内存</span>
+                </div>
+                <div class="action-item" @click="currentView = 'junk'">
+                  <SearchIcon />
+                  <span>扫描垃圾文件</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Memory View -->
+          <MemoryCard v-else-if="currentView === 'memory'" />
+
+          <!-- Junk View -->
+          <JunkCleanerCard v-else-if="currentView === 'junk'" />
+        </AppLayout>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { darkTheme, NConfigProvider, NTabs, NTabPane, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { ref, computed } from 'vue'
+import { darkTheme, NConfigProvider, NMessageProvider, NDialogProvider, NProgress, NButton } from 'naive-ui'
+import AppLayout from './components/AppLayout.vue'
 import MemoryCard from './components/MemoryCard.vue'
 import JunkCleanerCard from './components/JunkCleanerCard.vue'
+import MemoryIcon from './components/icons/MemoryIcon.vue'
+import TrashIcon from './components/icons/TrashIcon.vue'
+import ZapIcon from './components/icons/ZapIcon.vue'
+import SearchIcon from './components/icons/SearchIcon.vue'
+import { useMemory } from './composables/useMemory'
 
-const activeTab = ref<'memory' | 'junk'>('memory')
+const currentView = ref('dashboard')
+const { memoryInfo } = useMemory()
+
+const memoryPressure = computed(() => memoryInfo.value.pressure)
+
+const getPressureColor = () => {
+  if (memoryPressure.value < 50) return '#00ff88'
+  if (memoryPressure.value < 75) return '#f0ad4e'
+  return '#ff4757'
+}
+
+const handleNavigate = (view: string) => {
+  currentView.value = view
+}
 </script>
 
 <style>
@@ -53,7 +139,7 @@ html, body, #app {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   min-height: 100vh;
   color: #e0e0e0;
@@ -61,83 +147,194 @@ body {
 }
 
 ::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  display: none;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  display: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 </style>
 
 <style scoped>
-.app-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px;
+.dashboard-view {
+  animation: slideIn 0.3s ease;
 }
 
-.app-header {
-  text-align: center;
-  padding: 30px 0;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8892b0;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.overview-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.2s ease;
+}
+
+.overview-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
-.header-content h1 {
-  font-size: 2.8rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #00d9ff, #00ff88);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 8px;
-  letter-spacing: -1px;
+.card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
 }
 
-.subtitle {
-  font-size: 1.1rem;
+.card-icon.memory {
+  background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
+}
+
+.card-icon.junk {
+  background: linear-gradient(135deg, #FF9500 0%, #FF3B30 100%);
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.card-subtitle {
+  font-size: 12px;
   color: #8892b0;
-  letter-spacing: 2px;
 }
 
-.main-content {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 20px;
-  padding: 24px;
+.card-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #8892b0;
+}
+
+.card-placeholder {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #666666;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.card-action {
+  width: 100%;
+}
+
+.quick-actions {
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  padding: 24px;
 }
 
-.app-footer {
-  text-align: center;
-  padding: 20px 0;
-  color: #5a6a8a;
-  font-size: 0.85rem;
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 16px;
 }
 
-:deep(.n-tabs) {
-  height: 100%;
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
-:deep(.n-tab-pane) {
-  padding: 20px 0;
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  color: #8892b0;
 }
 
-:deep(.n-tabs-tab) {
-  font-size: 1rem;
-  padding: 12px 24px;
+.action-item:hover {
+  background: rgba(0, 122, 255, 0.1);
+  border-color: rgba(0, 122, 255, 0.3);
+  color: #007AFF;
 }
 
-:deep(.n-card) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.action-item :deep(svg) {
+  width: 20px;
+  height: 20px;
 }
 </style>
