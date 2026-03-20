@@ -59,29 +59,46 @@ async fn get_memory_info() -> Result<MemoryInfo, String> {
     get_memory_info_internal()
 }
 
-#[tauri::command]
-async fn free_memory() -> Result<String, String> {
-    let memory_info = get_memory_info_internal()?;
+#[derive(Debug, Serialize)]
+pub struct FreeMemoryResult {
+    freed_bytes: u64,
+    before_usage: f64,
+    after_usage: f64,
+}
 
-    let message = if memory_info.usage > 80.0 {
-        format!(
-            "当前内存使用率较高 ({:.1}%)。建议：\n1. 关闭不使用的应用程序\n2. 浏览器关闭不用的标签页\n3. 重启一些占用内存较多的应用\n\n总内存: {}\n已用: {}\n可用: {}",
-            memory_info.usage,
-            format_size_static(memory_info.total),
-            format_size_static(memory_info.used),
-            format_size_static(memory_info.available)
-        )
+#[tauri::command]
+async fn free_memory() -> Result<FreeMemoryResult, String> {
+    let before = get_memory_info_internal()?;
+    
+    let script = "do shell script \"purge\" with administrator privileges";
+    let output = Command::new("osascript")
+        .args(["-e", script])
+        .output()
+        .map_err(|e| format!("执行清理失败: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("User canceled") || stderr.contains("-128") {
+            return Err("用户取消了授权".to_string());
+        }
+        return Err(format!("清理失败: {}", stderr));
+    }
+
+    thread::sleep(Duration::from_millis(500));
+    
+    let after = get_memory_info_internal()?;
+    
+    let freed_bytes = if after.used < before.used {
+        before.used - after.used
     } else {
-        format!(
-            "当前内存状态良好 ({:.1}%)。\n\n总内存: {}\n已用: {}\n可用: {}",
-            memory_info.usage,
-            format_size_static(memory_info.total),
-            format_size_static(memory_info.used),
-            format_size_static(memory_info.available)
-        )
+        0
     };
 
-    Ok(message)
+    Ok(FreeMemoryResult {
+        freed_bytes,
+        before_usage: before.usage,
+        after_usage: after.usage,
+    })
 }
 
 fn get_memory_info_internal() -> Result<MemoryInfo, String> {
@@ -119,17 +136,6 @@ fn start_memory_monitor(app_handle: AppHandle) {
         }
         thread::sleep(Duration::from_secs(1));
     });
-}
-
-fn format_size_static(bytes: u64) -> String {
-    if bytes == 0 {
-        return "0 B".to_string();
-    }
-    let k = 1024.0;
-    let sizes = ["B", "KB", "MB", "GB", "TB"];
-    let i = (bytes as f64).log(k).floor() as usize;
-    let size = bytes as f64 / k.powi(i as i32);
-    format!("{:.2} {}", size, sizes[i.min(4)])
 }
 
 #[tauri::command]

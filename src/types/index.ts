@@ -18,6 +18,12 @@ export interface MemoryInfo {
   usage: number
 }
 
+export interface FreeMemoryResult {
+  freed_bytes: number
+  before_usage: number
+  after_usage: number
+}
+
 export interface JunkItem {
   path: string
   size: number

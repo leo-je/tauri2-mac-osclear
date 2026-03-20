@@ -1,7 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { MemoryInfo } from '../types'
+import type { MemoryInfo, FreeMemoryResult } from '../types'
 
 export function useMemory() {
   const memoryInfo = ref<MemoryInfo>({
@@ -28,10 +28,10 @@ export function useMemory() {
     }
   }
 
-  const freeMemory = async (): Promise<string> => {
+  const freeMemory = async (): Promise<FreeMemoryResult> => {
     isFreeing.value = true
     try {
-      const result = await invoke<string>('free_memory')
+      const result = await invoke<FreeMemoryResult>('free_memory')
       await fetchMemoryInfo()
       return result
     } catch (error) {

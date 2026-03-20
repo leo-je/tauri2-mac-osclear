@@ -139,7 +139,11 @@ const refresh = async () => {
 const handleFree = async () => {
   try {
     const result = await freeMemory()
-    message.success(result)
+    if (result.freed_bytes > 0) {
+      message.success(`已释放 ${formatSize(result.freed_bytes)} 内存`)
+    } else {
+      message.info('当前内存状态良好，无需清理')
+    }
   } catch (error) {
     message.error('内存清理失败: ' + String(error))
   }
