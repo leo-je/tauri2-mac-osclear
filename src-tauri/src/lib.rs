@@ -11,6 +11,23 @@ use tauri::{
 };
 use walkdir::WalkDir;
 
+fn start_system_monitor(app_handle: AppHandle, tray: TrayIcon) {
+    thread::spawn(move || {
+        loop {
+            if let Ok(status) = get_system_status_internal() {
+                let _ = app_handle.emit("system-update", status.clone());
+                let text = format!("c {:>3}%  m {:>3}%", status.cpu_usage as u32, status.memory_usage as u32);
+                let _ = tray.set_title(Some(text));
+                let _ = tray.set_tooltip(Some(format!("cpu: {:.0}%\nmem: {:.0}%", status.cpu_usage, status.memory_usage)));
+            }
+            if let Ok(memory_info) = get_memory_info_internal() {
+                let _ = app_handle.emit("memory-update", memory_info);
+            }
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct MemoryInfo {
     total: u64,
@@ -153,20 +170,6 @@ fn get_system_status_internal() -> Result<SystemStatus, String> {
         cpu_usage,
         memory_usage: memory_info.usage,
     })
-}
-
-fn start_system_monitor(app_handle: AppHandle, tray: TrayIcon) {
-    thread::spawn(move || loop {
-        if let Ok(status) = get_system_status_internal() {
-            let _ = app_handle.emit("system-update", status.clone());
-            let text = format!("CPU: {:.0}%\nMEM: {:.0}%", status.cpu_usage, status.memory_usage);
-            let _ = tray.set_title(Some(text));
-        }
-        if let Ok(memory_info) = get_memory_info_internal() {
-            let _ = app_handle.emit("memory-update", memory_info);
-        }
-        thread::sleep(Duration::from_secs(1));
-    });
 }
 
 #[tauri::command]
@@ -386,7 +389,6 @@ pub fn run() {
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .title("CPU: 0%\nMEM: 0%")
                 .build(app)?;
 
             start_system_monitor(app_handle, tray);
