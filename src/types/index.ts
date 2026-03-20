@@ -1,9 +1,10 @@
 export interface MemoryInfo {
   total: number
   used: number
+  available: number
   free: number
-  cached: number
-  pressure: number
+  reclaimable: number
+  usage: number
 }
 
 export interface JunkItem {

@@ -37,13 +37,13 @@
                 cy="100" 
                 r="85"
                 :style="{ 
-                  strokeDasharray: `${memoryInfo.pressure * 5.34} 534`,
+                  strokeDasharray: `${memoryInfo.usage * 5.34} 534`,
                   stroke: getPressureColor()
                 }"
               />
             </svg>
             <div class="gauge-center">
-              <span class="gauge-value">{{ memoryInfo.pressure.toFixed(1) }}</span>
+              <span class="gauge-value">{{ memoryInfo.usage.toFixed(1) }}</span>
               <span class="gauge-unit">%</span>
             </div>
           </div>
@@ -70,21 +70,21 @@
             </div>
           </div>
           <div class="stat-item">
-            <div class="stat-icon free">
+            <div class="stat-icon available">
               <CheckCircleIcon />
             </div>
             <div class="stat-info">
-              <span class="stat-value">{{ formatSize(memoryInfo.free) }}</span>
+              <span class="stat-value">{{ formatSize(memoryInfo.available) }}</span>
               <span class="stat-label">可用</span>
             </div>
           </div>
           <div class="stat-item">
-            <div class="stat-icon cached">
+            <div class="stat-icon free">
               <SparklesIcon />
             </div>
             <div class="stat-info">
-              <span class="stat-value">{{ formatSize(memoryInfo.cached) }}</span>
-              <span class="stat-label">缓存</span>
+              <span class="stat-value">{{ formatSize(memoryInfo.free) }}</span>
+              <span class="stat-label">空闲</span>
             </div>
           </div>
         </div>
@@ -109,12 +109,12 @@
         </n-button>
         <div class="action-stats">
           <div class="action-stat">
-            <span class="action-stat-value">{{ formatSize(memoryInfo.free) }}</span>
+            <span class="action-stat-value">{{ formatSize(memoryInfo.available) }}</span>
             <span class="action-stat-label">可用内存</span>
           </div>
           <div class="action-stat">
-            <span class="action-stat-value">{{ formatSize(memoryInfo.cached) }}</span>
-            <span class="action-stat-label">可释放缓存</span>
+            <span class="action-stat-value">{{ formatSize(memoryInfo.reclaimable) }}</span>
+            <span class="action-stat-label">可回收内存</span>
           </div>
         </div>
       </div>
@@ -158,20 +158,20 @@ const handleFree = async () => {
 }
 
 const getPressureColor = () => {
-  if (memoryInfo.value.pressure < 50) return '#00ff88'
-  if (memoryInfo.value.pressure < 75) return '#f0ad4e'
+  if (memoryInfo.value.usage < 50) return '#00ff88'
+  if (memoryInfo.value.usage < 75) return '#f0ad4e'
   return '#ff4757'
 }
 
 const getPressureClass = () => {
-  if (memoryInfo.value.pressure < 50) return 'success'
-  if (memoryInfo.value.pressure < 75) return 'warning'
+  if (memoryInfo.value.usage < 50) return 'success'
+  if (memoryInfo.value.usage < 75) return 'warning'
   return 'error'
 }
 
 const getPressureStatus = () => {
-  if (memoryInfo.value.pressure < 50) return '状态良好'
-  if (memoryInfo.value.pressure < 75) return '状态一般'
+  if (memoryInfo.value.usage < 50) return '状态良好'
+  if (memoryInfo.value.usage < 75) return '状态一般'
   return '需要清理'
 }
 
@@ -416,12 +416,12 @@ onMounted(() => {
   color: #FF3B30;
 }
 
-.stat-icon.free {
+.stat-icon.available {
   background: linear-gradient(135deg, rgba(52, 199, 89, 0.2), rgba(48, 219, 91, 0.2));
   color: #34C759;
 }
 
-.stat-icon.cached {
+.stat-icon.free {
   background: linear-gradient(135deg, rgba(175, 82, 222, 0.2), rgba(90, 200, 250, 0.2));
   color: #AF52DE;
 }

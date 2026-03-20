@@ -7,9 +7,10 @@ export function useMemory() {
   const memoryInfo = ref<MemoryInfo>({
     total: 0,
     used: 0,
+    available: 0,
     free: 0,
-    cached: 0,
-    pressure: 0
+    reclaimable: 0,
+    usage: 0
   })
   const isLoading = ref(false)
   const isFreeing = ref(false)

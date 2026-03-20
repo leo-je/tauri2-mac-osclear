@@ -22,12 +22,12 @@
                   </div>
                 </div>
                 <div class="card-stat">
-                  <span class="stat-value">{{ memoryPressure.toFixed(1) }}%</span>
+                  <span class="stat-value">{{ memoryUsage.toFixed(1) }}%</span>
                   <span class="stat-label">使用率</span>
                 </div>
                 <n-progress
                   type="line"
-                  :percentage="memoryPressure"
+                  :percentage="memoryUsage"
                   :show-indicator="false"
                   :height="6"
                   :border-radius="3"
@@ -113,11 +113,11 @@ import { useMemory } from './composables/useMemory'
 const currentView = ref('dashboard')
 const { memoryInfo, startListening } = useMemory()
 
-const memoryPressure = computed(() => memoryInfo.value.pressure)
+const memoryUsage = computed(() => memoryInfo.value.usage)
 
 const getPressureColor = () => {
-  if (memoryPressure.value < 50) return '#00ff88'
-  if (memoryPressure.value < 75) return '#f0ad4e'
+  if (memoryUsage.value < 50) return '#00ff88'
+  if (memoryUsage.value < 75) return '#f0ad4e'
   return '#ff4757'
 }
 

@@ -11,9 +11,10 @@ use walkdir::WalkDir;
 pub struct MemoryInfo {
     total: u64,
     used: u64,
+    available: u64,
     free: u64,
-    cached: u64,
-    pressure: f64,
+    reclaimable: u64,
+    usage: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,66 +45,28 @@ pub struct CleanResult {
 
 #[tauri::command]
 async fn get_memory_info() -> Result<MemoryInfo, String> {
-    let mut sys =
-        System::new_with_specifics(RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()));
-    sys.refresh_all();
-
-    let total = sys.total_memory();
-    let used = sys.used_memory();
-    let free = sys.free_memory();
-
-    let pressure = if total > 0 {
-        (used as f64 / total as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    let vm_stat_output = Command::new("vm_stat")
-        .output()
-        .map_err(|e| format!("Failed to run vm_stat: {}", e))?;
-
-    let vm_stat = String::from_utf8_lossy(&vm_stat_output.stdout);
-    let mut cached = 0u64;
-
-    for line in vm_stat.lines() {
-        if line.contains("Pages purgeable") || line.contains("Pages free") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 {
-                if let Ok(pages) = parts[2].trim_end_matches(".").parse::<u64>() {
-                    cached += pages * 4096;
-                }
-            }
-        }
-    }
-
-    Ok(MemoryInfo {
-        total,
-        used,
-        free,
-        cached,
-        pressure,
-    })
+    get_memory_info_internal()
 }
 
 #[tauri::command]
 async fn free_memory() -> Result<String, String> {
     let memory_info = get_memory_info_internal()?;
 
-    let message = if memory_info.pressure > 80.0 {
+    let message = if memory_info.usage > 80.0 {
         format!(
             "当前内存使用率较高 ({:.1}%)。建议：\n1. 关闭不使用的应用程序\n2. 浏览器关闭不用的标签页\n3. 重启一些占用内存较多的应用\n\n总内存: {}\n已用: {}\n可用: {}",
-            memory_info.pressure,
+            memory_info.usage,
             format_size_static(memory_info.total),
             format_size_static(memory_info.used),
-            format_size_static(memory_info.free)
+            format_size_static(memory_info.available)
         )
     } else {
         format!(
             "当前内存状态良好 ({:.1}%)。\n\n总内存: {}\n已用: {}\n可用: {}",
-            memory_info.pressure,
+            memory_info.usage,
             format_size_static(memory_info.total),
             format_size_static(memory_info.used),
-            format_size_static(memory_info.free)
+            format_size_static(memory_info.available)
         )
     };
 
@@ -114,53 +77,36 @@ fn get_memory_info_internal() -> Result<MemoryInfo, String> {
     let mut sys = System::new_with_specifics(
         RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
     );
-    sys.refresh_all();
+    sys.refresh_memory();
 
     let total = sys.total_memory();
     let used = sys.used_memory();
+    let available = sys.available_memory();
     let free = sys.free_memory();
+    let reclaimable = available.saturating_sub(free);
 
-    let pressure = if total > 0 {
+    let usage = if total > 0 {
         (used as f64 / total as f64) * 100.0
     } else {
         0.0
     };
 
-    let vm_stat_output = Command::new("vm_stat")
-        .output()
-        .map_err(|e| format!("Failed to run vm_stat: {}", e))?;
-
-    let vm_stat = String::from_utf8_lossy(&vm_stat_output.stdout);
-    let mut cached = 0u64;
-
-    for line in vm_stat.lines() {
-        if line.contains("Pages purgeable") || line.contains("Pages free") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 {
-                if let Ok(pages) = parts[2].trim_end_matches('.').parse::<u64>() {
-                    cached += pages * 4096;
-                }
-            }
-        }
-    }
-
     Ok(MemoryInfo {
         total,
         used,
+        available,
         free,
-        cached,
-        pressure,
+        reclaimable,
+        usage,
     })
 }
 
 fn start_memory_monitor(app_handle: AppHandle) {
-    thread::spawn(move || {
-        loop {
-            if let Ok(memory_info) = get_memory_info_internal() {
-                let _ = app_handle.emit("memory-update", memory_info);
-            }
-            thread::sleep(Duration::from_secs(1));
+    thread::spawn(move || loop {
+        if let Ok(memory_info) = get_memory_info_internal() {
+            let _ = app_handle.emit("memory-update", memory_info);
         }
+        thread::sleep(Duration::from_secs(1));
     });
 }
 
