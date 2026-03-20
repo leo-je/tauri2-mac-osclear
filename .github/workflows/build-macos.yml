@@ -61,7 +61,6 @@ jobs:
     strategy:
       matrix:
         target:
-          - universal-apple-darwin
           - x86_64-apple-darwin
           - aarch64-apple-darwin
     steps:
