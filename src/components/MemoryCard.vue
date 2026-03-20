@@ -140,7 +140,8 @@ const {
   isFreeing,
   fetchMemoryInfo,
   freeMemory,
-  formatSize
+  formatSize,
+  startListening
 } = useMemory()
 
 const refresh = async () => {
@@ -176,6 +177,7 @@ const getPressureStatus = () => {
 
 onMounted(() => {
   fetchMemoryInfo()
+  startListening()
 })
 </script>
 

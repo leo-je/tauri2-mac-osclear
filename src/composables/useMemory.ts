@@ -1,5 +1,6 @@
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { MemoryInfo } from '../types'
 
 export function useMemory() {
@@ -12,6 +13,7 @@ export function useMemory() {
   })
   const isLoading = ref(false)
   const isFreeing = ref(false)
+  let unlisten: UnlistenFn | null = null
 
   const fetchMemoryInfo = async () => {
     isLoading.value = true
@@ -46,12 +48,32 @@ export function useMemory() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  const startListening = async () => {
+    if (unlisten) return
+    unlisten = await listen<MemoryInfo>('memory-update', (event) => {
+      memoryInfo.value = event.payload
+    })
+  }
+
+  const stopListening = () => {
+    if (unlisten) {
+      unlisten()
+      unlisten = null
+    }
+  }
+
+  onUnmounted(() => {
+    stopListening()
+  })
+
   return {
     memoryInfo,
     isLoading,
     isFreeing,
     fetchMemoryInfo,
     freeMemory,
-    formatSize
+    formatSize,
+    startListening,
+    stopListening
   }
 }

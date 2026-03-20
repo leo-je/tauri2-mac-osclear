@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct MemoryInfo {
     total: u64,
     used: u64,
@@ -148,6 +151,17 @@ fn get_memory_info_internal() -> Result<MemoryInfo, String> {
         cached,
         pressure,
     })
+}
+
+fn start_memory_monitor(app_handle: AppHandle) {
+    thread::spawn(move || {
+        loop {
+            if let Ok(memory_info) = get_memory_info_internal() {
+                let _ = app_handle.emit("memory-update", memory_info);
+            }
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
 }
 
 fn format_size_static(bytes: u64) -> String {
@@ -325,6 +339,11 @@ async fn get_system_info() -> Result<serde_json::Value, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            start_memory_monitor(app_handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_memory_info,
             free_memory,

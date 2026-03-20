@@ -22,7 +22,7 @@
                   </div>
                 </div>
                 <div class="card-stat">
-                  <span class="stat-value">{{ memoryPressure }}%</span>
+                  <span class="stat-value">{{ memoryPressure.toFixed(1) }}%</span>
                   <span class="stat-label">使用率</span>
                 </div>
                 <n-progress
@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { darkTheme, NConfigProvider, NMessageProvider, NDialogProvider, NProgress, NButton } from 'naive-ui'
 import AppLayout from './components/AppLayout.vue'
 import MemoryCard from './components/MemoryCard.vue'
@@ -111,7 +111,7 @@ import SearchIcon from './components/icons/SearchIcon.vue'
 import { useMemory } from './composables/useMemory'
 
 const currentView = ref('dashboard')
-const { memoryInfo } = useMemory()
+const { memoryInfo, startListening } = useMemory()
 
 const memoryPressure = computed(() => memoryInfo.value.pressure)
 
@@ -124,6 +124,10 @@ const getPressureColor = () => {
 const handleNavigate = (view: string) => {
   currentView.value = view
 }
+
+onMounted(() => {
+  startListening()
+})
 </script>
 
 <style>
