@@ -181,6 +181,9 @@ onMounted(() => {
 
 <style scoped>
 .memory-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   animation: slideIn 0.3s ease;
 }
 
@@ -199,7 +202,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
 }
 
 .header-left {
@@ -208,15 +212,15 @@ onMounted(() => {
 }
 
 .page-title {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: #ffffff;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
-  font-size: 14px;
+  font-size: 12px;
   color: #8892b0;
 }
 
@@ -231,28 +235,32 @@ onMounted(() => {
 .memory-dashboard {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 24px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .main-card {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 24px;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .card-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.2), rgba(88, 86, 214, 0.2));
-  border-radius: 12px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -260,8 +268,8 @@ onMounted(() => {
 }
 
 .card-icon :deep(svg) {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .card-info {
@@ -307,13 +315,15 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
+  flex: 1;
+  justify-content: center;
 }
 
 .gauge-container {
   position: relative;
-  width: 180px;
-  height: 180px;
+  width: 140px;
+  height: 140px;
 }
 
 .gauge-svg {
@@ -325,12 +335,12 @@ onMounted(() => {
 .gauge-bg {
   fill: none;
   stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 12;
+  stroke-width: 10;
 }
 
 .gauge-fill {
   fill: none;
-  stroke-width: 12;
+  stroke-width: 10;
   stroke-linecap: round;
   transition: stroke-dasharray 0.6s ease;
 }
@@ -345,38 +355,38 @@ onMounted(() => {
 }
 
 .gauge-value {
-  font-size: 42px;
+  font-size: 32px;
   font-weight: 700;
   color: #ffffff;
   line-height: 1;
 }
 
 .gauge-unit {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 500;
   color: #8892b0;
   margin-left: 2px;
 }
 
 .gauge-label {
-  font-size: 14px;
+  font-size: 12px;
   color: #8892b0;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .memory-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 10px;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
+  border-radius: 10px;
   transition: all 0.2s ease;
 }
 
@@ -385,9 +395,9 @@ onMounted(() => {
 }
 
 .stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -438,41 +448,41 @@ onMounted(() => {
 .action-card {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 24px;
+  border-radius: 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
 }
 
 .action-header {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .action-header h3 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #ffffff;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .action-header p {
-  font-size: 13px;
+  font-size: 11px;
   color: #8892b0;
 }
 
 .clean-button {
   width: 100%;
-  height: 52px;
-  font-size: 16px;
+  height: 44px;
+  font-size: 14px;
   font-weight: 600;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  border-radius: 10px;
+  margin-bottom: 16px;
 }
 
 .action-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 10px;
   margin-top: auto;
 }
 
@@ -480,20 +490,20 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .action-stat-value {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   color: #ffffff;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .action-stat-label {
-  font-size: 12px;
+  font-size: 10px;
   color: #8892b0;
 }
 </style>
