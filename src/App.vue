@@ -2,7 +2,7 @@
   <n-config-provider :theme="darkTheme">
     <n-message-provider>
       <n-dialog-provider>
-        <AppLayout @navigate="handleNavigate">
+        <AppLayout :activeItem="currentView" @navigate="handleNavigate">
           <!-- Dashboard View -->
           <div v-if="currentView === 'dashboard'" class="dashboard-view">
             <div class="page-header">
@@ -222,6 +222,8 @@ body {
   border-radius: 16px;
   padding: 24px;
   transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .overview-card:hover {
@@ -303,6 +305,7 @@ body {
 
 .card-action {
   width: 100%;
+  margin-top: auto;
 }
 
 .quick-actions {

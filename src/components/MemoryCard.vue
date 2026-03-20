@@ -12,103 +12,119 @@
       </n-button>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card total">
-        <div class="stat-icon">
-          <MemoryIcon />
+    <div class="memory-dashboard">
+      <div class="main-card">
+        <div class="card-header">
+          <div class="card-icon">
+            <MemoryIcon />
+          </div>
+          <div class="card-info">
+            <span class="card-title">内存状态</span>
+            <span class="card-subtitle">实时监控</span>
+          </div>
+          <span class="status-badge" :class="getPressureClass()">
+            {{ getPressureStatus() }}
+          </span>
         </div>
-        <div class="stat-content">
-          <div class="stat-label">总内存</div>
-          <div class="stat-value">{{ formatSize(memoryInfo.total) }}</div>
-        </div>
-      </div>
-      <div class="stat-card used">
-        <div class="stat-icon">
-          <ZapIcon />
-        </div>
-        <div class="stat-content">
-          <div class="stat-label">已使用</div>
-          <div class="stat-value">{{ formatSize(memoryInfo.used) }}</div>
-        </div>
-      </div>
-      <div class="stat-card free">
-        <div class="stat-icon">
-          <CheckCircleIcon />
-        </div>
-        <div class="stat-content">
-          <div class="stat-label">可用</div>
-          <div class="stat-value">{{ formatSize(memoryInfo.free) }}</div>
-        </div>
-      </div>
-      <div class="stat-card cached">
-        <div class="stat-icon">
-          <SparklesIcon />
-        </div>
-        <div class="stat-content">
-          <div class="stat-label">缓存</div>
-          <div class="stat-value">{{ formatSize(memoryInfo.cached) }}</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="pressure-section">
-      <div class="section-header">
-        <h3 class="section-title">内存使用率</h3>
-        <span class="pressure-badge" :class="getPressureClass()">
-          {{ getPressureStatus() }}
-        </span>
-      </div>
-      
-      <div class="pressure-display">
-        <div class="pressure-value-container">
-          <span class="pressure-value">{{ memoryInfo.pressure.toFixed(1) }}</span>
-          <span class="pressure-unit">%</span>
+        <div class="memory-gauge">
+          <div class="gauge-container">
+            <svg class="gauge-svg" viewBox="0 0 200 200">
+              <circle class="gauge-bg" cx="100" cy="100" r="85" />
+              <circle 
+                class="gauge-fill" 
+                cx="100" 
+                cy="100" 
+                r="85"
+                :style="{ 
+                  strokeDasharray: `${memoryInfo.pressure * 5.34} 534`,
+                  stroke: getPressureColor()
+                }"
+              />
+            </svg>
+            <div class="gauge-center">
+              <span class="gauge-value">{{ memoryInfo.pressure.toFixed(1) }}</span>
+              <span class="gauge-unit">%</span>
+            </div>
+          </div>
+          <div class="gauge-label">内存使用率</div>
         </div>
-        <n-progress
-          type="line"
-          :percentage="memoryInfo.pressure"
-          :show-indicator="false"
-          :height="10"
-          :border-radius="5"
-          :color="getPressureColor()"
-          rail-color="rgba(255,255,255,0.08)"
-        />
+
+        <div class="memory-stats">
+          <div class="stat-item">
+            <div class="stat-icon total">
+              <MemoryIcon />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{{ formatSize(memoryInfo.total) }}</span>
+              <span class="stat-label">总内存</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon used">
+              <ZapIcon />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{{ formatSize(memoryInfo.used) }}</span>
+              <span class="stat-label">已使用</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon free">
+              <CheckCircleIcon />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{{ formatSize(memoryInfo.free) }}</span>
+              <span class="stat-label">可用</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon cached">
+              <SparklesIcon />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{{ formatSize(memoryInfo.cached) }}</span>
+              <span class="stat-label">缓存</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="pressure-stats">
-        <div class="pressure-stat">
-          <span class="pressure-stat-value">{{ formatSize(memoryInfo.used) }}</span>
-          <span class="pressure-stat-label">已使用</span>
+      <div class="action-card">
+        <div class="action-header">
+          <h3>快速清理</h3>
+          <p>释放系统缓存，提升运行速度</p>
         </div>
-        <div class="pressure-divider"></div>
-        <div class="pressure-stat">
-          <span class="pressure-stat-value">{{ formatSize(memoryInfo.free) }}</span>
-          <span class="pressure-stat-label">可用</span>
+        <n-button
+          type="primary"
+          size="large"
+          :loading="isFreeing"
+          @click="handleFree"
+          class="clean-button"
+        >
+          <template #icon>
+            <n-icon><ZapIcon /></n-icon>
+          </template>
+          {{ isFreeing ? '清理中...' : '一键清理内存' }}
+        </n-button>
+        <div class="action-stats">
+          <div class="action-stat">
+            <span class="action-stat-value">{{ formatSize(memoryInfo.free) }}</span>
+            <span class="action-stat-label">可用内存</span>
+          </div>
+          <div class="action-stat">
+            <span class="action-stat-value">{{ formatSize(memoryInfo.cached) }}</span>
+            <span class="action-stat-label">可释放缓存</span>
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="action-section">
-      <n-button
-        type="primary"
-        size="large"
-        :loading="isFreeing"
-        @click="handleFree"
-        class="clean-button"
-      >
-        <template #icon>
-          <n-icon><ZapIcon /></n-icon>
-        </template>
-        {{ isFreeing ? '清理中...' : '一键清理内存' }}
-      </n-button>
-      <p class="action-hint">清理后将释放系统缓存，提升运行速度</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { NButton, NProgress, NIcon, useMessage } from 'naive-ui'
+import { NButton, NIcon, useMessage } from 'naive-ui'
 import { useMemory } from '../composables/useMemory'
 import RefreshIcon from './icons/RefreshIcon.vue'
 import MemoryIcon from './icons/MemoryIcon.vue'
@@ -212,193 +228,272 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.stats-grid {
+.memory-dashboard {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 32px;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
 }
 
-.stat-card {
+.main-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.card-header {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  transition: all 0.2s ease;
+  margin-bottom: 24px;
 }
 
-.stat-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  transform: translateY(-2px);
-}
-
-.stat-icon {
+.card-icon {
   width: 48px;
   height: 48px;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.2), rgba(88, 86, 214, 0.2));
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  flex-shrink: 0;
+  color: #007AFF;
 }
 
-.stat-card.total .stat-icon {
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.2), rgba(88, 86, 214, 0.2));
-}
-
-.stat-card.used .stat-icon {
-  background: linear-gradient(135deg, rgba(255, 59, 48, 0.2), rgba(255, 149, 0, 0.2));
-}
-
-.stat-card.free .stat-icon {
-  background: linear-gradient(135deg, rgba(52, 199, 89, 0.2), rgba(48, 219, 91, 0.2));
-}
-
-.stat-card.cached .stat-icon {
-  background: linear-gradient(135deg, rgba(175, 82, 222, 0.2), rgba(90, 200, 250, 0.2));
-}
-
-.stat-icon :deep(svg) {
+.card-icon :deep(svg) {
   width: 24px;
   height: 24px;
 }
 
-.stat-content {
+.card-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.stat-label {
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.card-subtitle {
   font-size: 13px;
   color: #8892b0;
-  margin-bottom: 4px;
 }
 
-.stat-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.pressure-section {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 32px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.pressure-badge {
+.status-badge {
   font-size: 12px;
   font-weight: 600;
-  padding: 4px 12px;
+  padding: 6px 12px;
   border-radius: 20px;
 }
 
-.pressure-badge.success {
+.status-badge.success {
   background: rgba(52, 199, 89, 0.15);
   color: #34C759;
 }
 
-.pressure-badge.warning {
+.status-badge.warning {
   background: rgba(255, 149, 0, 0.15);
   color: #FF9500;
 }
 
-.pressure-badge.error {
+.status-badge.error {
   background: rgba(255, 59, 48, 0.15);
   color: #FF3B30;
 }
 
-.pressure-display {
-  margin-bottom: 20px;
+.memory-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
 }
 
-.pressure-value-container {
+.gauge-container {
+  position: relative;
+  width: 180px;
+  height: 180px;
+}
+
+.gauge-svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.gauge-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 12;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
+}
+
+.gauge-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: baseline;
-  margin-bottom: 12px;
 }
 
-.pressure-value {
-  font-size: 48px;
+.gauge-value {
+  font-size: 42px;
   font-weight: 700;
   color: #ffffff;
   line-height: 1;
 }
 
-.pressure-unit {
-  font-size: 24px;
+.gauge-unit {
+  font-size: 20px;
   font-weight: 500;
   color: #8892b0;
-  margin-left: 4px;
+  margin-left: 2px;
 }
 
-.pressure-stats {
+.gauge-label {
+  font-size: 14px;
+  color: #8892b0;
+  margin-top: 12px;
+}
+
+.memory-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 32px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
 
-.pressure-stat {
+.stat-icon.total {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.2), rgba(88, 86, 214, 0.2));
+  color: #007AFF;
+}
+
+.stat-icon.used {
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.2), rgba(255, 149, 0, 0.2));
+  color: #FF3B30;
+}
+
+.stat-icon.free {
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.2), rgba(48, 219, 91, 0.2));
+  color: #34C759;
+}
+
+.stat-icon.cached {
+  background: linear-gradient(135deg, rgba(175, 82, 222, 0.2), rgba(90, 200, 250, 0.2));
+  color: #AF52DE;
+}
+
+.stat-icon :deep(svg) {
+  width: 20px;
+  height: 20px;
+}
+
+.stat-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-.pressure-stat-value {
-  font-size: 18px;
+.stat-value {
+  font-size: 16px;
   font-weight: 700;
   color: #ffffff;
 }
 
-.pressure-stat-label {
+.stat-label {
   font-size: 12px;
   color: #8892b0;
-  margin-top: 4px;
 }
 
-.pressure-divider {
-  width: 1px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.08);
+.action-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
 }
 
-.action-section {
-  text-align: center;
+.action-header {
+  margin-bottom: 24px;
+}
+
+.action-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.action-header p {
+  font-size: 13px;
+  color: #8892b0;
 }
 
 .clean-button {
-  min-width: 200px;
-  height: 48px;
+  width: 100%;
+  height: 52px;
   font-size: 16px;
   font-weight: 600;
   border-radius: 12px;
+  margin-bottom: 24px;
 }
 
-.action-hint {
-  margin-top: 12px;
-  font-size: 13px;
+.action-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: auto;
+}
+
+.action-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+}
+
+.action-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.action-stat-label {
+  font-size: 12px;
   color: #8892b0;
 }
 </style>

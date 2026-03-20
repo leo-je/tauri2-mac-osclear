@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout">
-    <Sidebar :activeItem="currentView" @navigate="handleNavigate" />
+    <Sidebar :activeItem="activeItem" @navigate="handleNavigate" />
     <main class="main-content">
       <div class="content-wrapper">
         <slot />
@@ -10,17 +10,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import Sidebar from './Sidebar.vue'
 
-const currentView = ref('dashboard')
+interface Props {
+  activeItem: string
+}
+
+defineProps<Props>()
 
 const emit = defineEmits<{
   navigate: [view: string]
 }>()
 
 const handleNavigate = (view: string) => {
-  currentView.value = view
   emit('navigate', view)
 }
 </script>

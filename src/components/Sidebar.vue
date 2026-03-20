@@ -2,7 +2,7 @@
   <nav class="sidebar">
     <div class="sidebar-header">
       <div class="app-logo">
-        <SparklesIcon />
+        <img src="/icons/logo.png" alt="macOS Cleaner" class="logo-img" />
       </div>
       <div class="app-info">
         <span class="app-name">macOS Cleaner</span>
@@ -54,7 +54,6 @@
 
 <script setup lang="ts">
 import { markRaw } from 'vue'
-import SparklesIcon from './icons/SparklesIcon.vue'
 import DashboardIcon from './icons/DashboardIcon.vue'
 import MemoryIcon from './icons/MemoryIcon.vue'
 import TrashIcon from './icons/TrashIcon.vue'
@@ -105,13 +104,18 @@ const navItems = [
 .app-logo {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .app-info {
