@@ -24,6 +24,13 @@ export interface FreeMemoryResult {
   after_usage: number
 }
 
+export interface ProcessMemoryInfo {
+  pid: number
+  name: string
+  memory_bytes: number
+  cpu_usage: number
+}
+
 export interface JunkItem {
   path: string
   size: number

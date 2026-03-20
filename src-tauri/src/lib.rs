@@ -59,6 +59,14 @@ pub struct SystemStatus {
     memory_usage: f64,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct ProcessMemoryInfo {
+    pid: u32,
+    name: String,
+    memory_bytes: u64,
+    cpu_usage: f32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct JunkItem {
     path: String,
@@ -99,6 +107,28 @@ struct JunkScanTargetSpec {
 #[tauri::command]
 async fn get_memory_info() -> Result<MemoryInfo, String> {
     get_memory_info_internal()
+}
+
+#[tauri::command]
+async fn get_process_memory_list() -> Result<Vec<ProcessMemoryInfo>, String> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    let mut processes: Vec<ProcessMemoryInfo> = sys
+        .processes()
+        .iter()
+        .filter(|(_, process)| process.memory() > 1024 * 1024)
+        .map(|(pid, process)| ProcessMemoryInfo {
+            pid: pid.as_u32(),
+            name: process.name().to_string_lossy().to_string(),
+            memory_bytes: process.memory(),
+            cpu_usage: process.cpu_usage(),
+        })
+        .collect();
+
+    processes.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+
+    Ok(processes)
 }
 
 #[derive(Debug, Serialize)]
@@ -573,6 +603,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_memory_info,
+            get_process_memory_list,
             free_memory,
             setup_passwordless_purge,
             scan_junk_files,

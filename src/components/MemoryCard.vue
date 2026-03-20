@@ -105,19 +105,30 @@
         {{ isFreeing ? '清理中...' : '一键清理内存' }}
       </n-button>
     </div>
+
+    <div class="process-list-section">
+      <ProcessMemoryList 
+        :processes="processList" 
+        :formatSize="formatSize"
+        @refresh="fetchProcessList"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { NButton, NIcon, useMessage } from 'naive-ui'
+import { invoke } from '@tauri-apps/api/core'
 import { useMemory } from '../composables/useMemory'
 import { useSettings } from '../composables/useSettings'
+import type { ProcessMemoryInfo } from '../types'
 import RefreshIcon from './icons/RefreshIcon.vue'
 import MemoryIcon from './icons/MemoryIcon.vue'
 import ZapIcon from './icons/ZapIcon.vue'
 import CheckCircleIcon from './icons/CheckCircleIcon.vue'
 import SparklesIcon from './icons/SparklesIcon.vue'
+import ProcessMemoryList from './ProcessMemoryList.vue'
 
 const message = useMessage()
 const { settings } = useSettings()
@@ -132,8 +143,18 @@ const {
   startListening
 } = useMemory()
 
+const processList = ref<ProcessMemoryInfo[]>([])
+
+const fetchProcessList = async () => {
+  try {
+    processList.value = await invoke<ProcessMemoryInfo[]>('get_process_memory_list')
+  } catch (error) {
+    console.error('Failed to fetch process list:', error)
+  }
+}
+
 const refresh = async () => {
-  await fetchMemoryInfo()
+  await Promise.all([fetchMemoryInfo(), fetchProcessList()])
 }
 
 const handleFree = async () => {
@@ -169,6 +190,7 @@ const getPressureStatus = () => {
 
 onMounted(() => {
   fetchMemoryInfo()
+  fetchProcessList()
   startListening()
 })
 </script>
@@ -227,8 +249,7 @@ onMounted(() => {
 }
 
 .memory-dashboard {
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
 }
 
 .main-card {
@@ -238,7 +259,6 @@ onMounted(() => {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .card-header {
@@ -450,5 +470,11 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   border-radius: 12px;
+}
+
+.process-list-section {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
 }
 </style>
