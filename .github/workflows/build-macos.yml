@@ -5,32 +5,12 @@ on:
     branches:
       - dev
 
-jobs:
-  create-tag:
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.create_tag.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Create tag
-        id: create_tag
-        run: |
-          TAG="v0.0.${{ github.run_number }}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.create_tag.outputs.tag }}
-          name: Release ${{ steps.create_tag.outputs.tag }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+permissions:
+  contents: write
+  actions: write
 
-  build-macos:
-    needs: create-tag
+jobs:
+  build-and-release:
     runs-on: macos-latest
     strategy:
       matrix:
@@ -40,7 +20,22 @@ jobs:
           - aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+          
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Create tag
+        id: create_tag
+        run: |
+          TAG="v0.0.${{ github.run_number }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          git tag -a $TAG -m "Release $TAG"
+          git push origin $TAG
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -65,53 +60,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         with:
-          tagName: ${{ needs.create-tag.outputs.tag }}
-          releaseName: 'Release ${{ needs.create-tag.outputs.tag }}'
-          releaseBody: 'Automated release for ${{ needs.create-tag.outputs.tag }}'
+          tagName: ${{ steps.create_tag.outputs.tag }}
+          releaseName: 'Release ${{ steps.create_tag.outputs.tag }}'
+          releaseBody: 'Automated release for ${{ steps.create_tag.outputs.tag }}'
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
           tauriScript: npm run tauri
           args: --target ${{ matrix.target }}
-          
-      - name: Rename artifacts
-        id: rename
-        run: |
-          VERSION="${{ needs.create-tag.outputs.tag }}"
-          ARCH="${{ matrix.target }}"
-          
-          if [[ "$ARCH" == "universal-apple-darwin" ]]; then
-            PLATFORM="universal"
-          elif [[ "$ARCH" == "x86_64-apple-darwin" ]]; then
-            PLATFORM="x86"
-          elif [[ "$ARCH" == "aarch64-apple-darwin" ]]; then
-            PLATFORM="arm"
-          fi
-          
-          cd src-tauri/target/${{ matrix.target }}/release/bundle
-          
-          for dmg in *.dmg; do
-            if [ -f "$dmg" ]; then
-              NEW_NAME="Mac-cleaner-${PLATFORM}-${VERSION}.dmg"
-              mv "$dmg" "../../../$NEW_NAME"
-              echo "dmg=$NEW_NAME" >> $GITHUB_OUTPUT
-            fi
-          done
-          
-          for app in *.app; do
-            if [ -d "$app" ]; then
-              NEW_NAME="Mac-cleaner-${PLATFORM}-${VERSION}.app"
-              cp -r "$app" "../../../$NEW_NAME"
-              echo "app=$NEW_NAME" >> $GITHUB_OUTPUT
-            fi
-          done
-          
-      - name: Upload to release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.create-tag.outputs.tag }}
-          files: |
-            src-tauri/target/Mac-cleaner-*.dmg
-            src-tauri/target/Mac-cleaner-*.app
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
