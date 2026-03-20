@@ -89,35 +89,21 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="action-card">
-        <div class="action-header">
-          <h3>快速清理</h3>
-          <p>释放系统缓存，提升运行速度</p>
-        </div>
-        <n-button
-          type="primary"
-          size="large"
-          :loading="isFreeing"
-          @click="handleFree"
-          class="clean-button"
-        >
-          <template #icon>
-            <n-icon><ZapIcon /></n-icon>
-          </template>
-          {{ isFreeing ? '清理中...' : '一键清理内存' }}
-        </n-button>
-        <div class="action-stats">
-          <div class="action-stat">
-            <span class="action-stat-value">{{ formatSize(memoryInfo.available) }}</span>
-            <span class="action-stat-label">可用内存</span>
-          </div>
-          <div class="action-stat">
-            <span class="action-stat-value">{{ formatSize(memoryInfo.reclaimable) }}</span>
-            <span class="action-stat-label">可回收内存</span>
-          </div>
-        </div>
-      </div>
+    <div class="action-bar">
+      <n-button
+        type="primary"
+        size="large"
+        :loading="isFreeing"
+        @click="handleFree"
+        class="clean-button"
+      >
+        <template #icon>
+          <n-icon><ZapIcon /></n-icon>
+        </template>
+        {{ isFreeing ? '清理中...' : '一键清理内存' }}
+      </n-button>
     </div>
   </div>
 </template>
@@ -237,9 +223,6 @@ onMounted(() => {
 }
 
 .memory-dashboard {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 16px;
   flex: 1;
   min-height: 0;
 }
@@ -251,6 +234,7 @@ onMounted(() => {
   padding: 16px;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .card-header {
@@ -449,65 +433,18 @@ onMounted(() => {
   color: #8892b0;
 }
 
-.action-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 16px;
+.action-bar {
+  padding: 20px 0;
   display: flex;
-  flex-direction: column;
-}
-
-.action-header {
-  margin-bottom: 16px;
-}
-
-.action-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
-  margin-bottom: 4px;
-}
-
-.action-header p {
-  font-size: 11px;
-  color: #8892b0;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .clean-button {
-  width: 100%;
-  height: 44px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 10px;
-  margin-bottom: 16px;
-}
-
-.action-stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-top: auto;
-}
-
-.action-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 10px;
-}
-
-.action-stat-value {
+  min-width: 200px;
+  height: 48px;
   font-size: 15px;
-  font-weight: 700;
-  color: #ffffff;
-  margin-bottom: 2px;
-}
-
-.action-stat-label {
-  font-size: 10px;
-  color: #8892b0;
+  font-weight: 600;
+  border-radius: 12px;
 }
 </style>
