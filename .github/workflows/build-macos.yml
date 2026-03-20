@@ -28,10 +28,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-      - name: Create tag
+      - name: Create unique tag
         id: create_tag
         run: |
-          TAG="v0.0.${{ github.run_number }}"
+          BASE_VERSION="v0.0"
+          RUN_NUMBER="${{ github.run_number }}"
+          TAG="${BASE_VERSION}.${RUN_NUMBER}"
+          
+          while git tag | grep -q "^${TAG}$"; do
+            RUN_NUMBER=$((RUN_NUMBER + 1))
+            TAG="${BASE_VERSION}.${RUN_NUMBER}"
+          done
+          
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           git tag -a $TAG -m "Release $TAG"
           git push origin $TAG
