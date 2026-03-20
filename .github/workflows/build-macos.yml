@@ -31,11 +31,13 @@ jobs:
       - name: Create unique tag
         id: create_tag
         run: |
+          git fetch --tags
+          
           BASE_VERSION="v0.0"
           RUN_NUMBER="${{ github.run_number }}"
           TAG="${BASE_VERSION}.${RUN_NUMBER}"
           
-          while git tag | grep -q "^${TAG}$"; do
+          while git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; do
             RUN_NUMBER=$((RUN_NUMBER + 1))
             TAG="${BASE_VERSION}.${RUN_NUMBER}"
           done
