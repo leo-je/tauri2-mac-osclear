@@ -32,6 +32,11 @@ pub struct JunkScanResult {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ScanJunkRequest {
+    target_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CleanRequest {
     paths: Vec<String>,
 }
@@ -41,6 +46,12 @@ pub struct CleanResult {
     cleaned_count: usize,
     cleaned_size: u64,
     errors: Vec<String>,
+}
+
+struct JunkScanTargetSpec {
+    id: &'static str,
+    category: &'static str,
+    path: PathBuf,
 }
 
 #[tauri::command]
@@ -122,29 +133,18 @@ fn format_size_static(bytes: u64) -> String {
 }
 
 #[tauri::command]
-async fn scan_junk_files() -> Result<JunkScanResult, String> {
+async fn scan_junk_files(request: Option<ScanJunkRequest>) -> Result<JunkScanResult, String> {
     let mut items: Vec<JunkItem> = Vec::new();
     let home = std::env::var("HOME").map_err(|e| format!("Failed to get HOME: {}", e))?;
 
-    let junk_paths = vec![
-        (format!("{}/Library/Caches", home), "用户缓存"),
-        (format!("{}/Library/Logs", home), "日志文件"),
-        ("/tmp".to_string(), "临时文件"),
-        ("/Library/Caches".to_string(), "系统缓存"),
-        (
-            format!("{}/Library/Developer/Xcode/DerivedData", home),
-            "Xcode 派生数据",
-        ),
-        (
-            format!("{}/Library/Application Support", home),
-            "应用支持文件",
-        ),
-        (format!("{}/Downloads", home), "下载文件"),
-        (format!("{}/.Trash", home), "废纸篓"),
-    ];
+    let selected_target_ids = request
+        .map(|scan_request| scan_request.target_ids)
+        .unwrap_or_default();
 
-    for (path_str, category) in junk_paths {
-        let path = PathBuf::from(&path_str);
+    let junk_paths = get_selected_junk_scan_targets(&home, &selected_target_ids);
+
+    for target in junk_paths {
+        let path = target.path;
         if !path.exists() {
             continue;
         }
@@ -162,7 +162,7 @@ async fn scan_junk_files() -> Result<JunkScanResult, String> {
                         items.push(JunkItem {
                             path: entry.path().to_string_lossy().to_string(),
                             size,
-                            category: category.to_string(),
+                            category: target.category.to_string(),
                         });
                     }
                 }
@@ -171,9 +171,9 @@ async fn scan_junk_files() -> Result<JunkScanResult, String> {
             let metadata = path.metadata();
             if let Ok(meta) = metadata {
                 items.push(JunkItem {
-                    path: path_str,
+                    path: path.to_string_lossy().to_string(),
                     size: meta.len(),
-                    category: category.to_string(),
+                    category: target.category.to_string(),
                 });
             }
         }
@@ -199,6 +199,60 @@ async fn scan_junk_files() -> Result<JunkScanResult, String> {
         total_size,
         categories,
     })
+}
+
+fn get_selected_junk_scan_targets(home: &str, selected_ids: &[String]) -> Vec<JunkScanTargetSpec> {
+    let all_targets = vec![
+        JunkScanTargetSpec {
+            id: "user_cache",
+            category: "用户缓存",
+            path: PathBuf::from(format!("{}/Library/Caches", home)),
+        },
+        JunkScanTargetSpec {
+            id: "logs",
+            category: "日志文件",
+            path: PathBuf::from(format!("{}/Library/Logs", home)),
+        },
+        JunkScanTargetSpec {
+            id: "tmp",
+            category: "临时文件",
+            path: PathBuf::from("/tmp"),
+        },
+        JunkScanTargetSpec {
+            id: "system_cache",
+            category: "系统缓存",
+            path: PathBuf::from("/Library/Caches"),
+        },
+        JunkScanTargetSpec {
+            id: "xcode_derived_data",
+            category: "Xcode 派生数据",
+            path: PathBuf::from(format!("{}/Library/Developer/Xcode/DerivedData", home)),
+        },
+        JunkScanTargetSpec {
+            id: "application_support",
+            category: "应用支持文件",
+            path: PathBuf::from(format!("{}/Library/Application Support", home)),
+        },
+        JunkScanTargetSpec {
+            id: "downloads",
+            category: "下载文件",
+            path: PathBuf::from(format!("{}/Downloads", home)),
+        },
+        JunkScanTargetSpec {
+            id: "trash",
+            category: "废纸篓",
+            path: PathBuf::from(format!("{}/.Trash", home)),
+        },
+    ];
+
+    if selected_ids.is_empty() {
+        return all_targets;
+    }
+
+    all_targets
+        .into_iter()
+        .filter(|target| selected_ids.iter().any(|selected_id| selected_id == target.id))
+        .collect()
 }
 
 #[tauri::command]

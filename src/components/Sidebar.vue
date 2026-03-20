@@ -31,12 +31,17 @@
     <div class="nav-section">
       <div class="nav-label">其他</div>
       <ul class="nav-list">
-        <li class="nav-item disabled">
+        <li
+          v-for="item in secondaryItems"
+          :key="item.id"
+          class="nav-item"
+          :class="{ active: activeItem === item.id }"
+          @click="$emit('navigate', item.id)"
+        >
           <span class="nav-icon">
-            <SettingsIcon />
+            <component :is="item.icon" />
           </span>
-          <span class="nav-text">设置</span>
-          <span class="nav-badge">即将推出</span>
+          <span class="nav-text">{{ item.label }}</span>
         </li>
       </ul>
     </div>
@@ -72,6 +77,10 @@ const navItems = [
   { id: 'dashboard', label: '总览', icon: markRaw(DashboardIcon) },
   { id: 'memory', label: '内存清理', icon: markRaw(MemoryIcon) },
   { id: 'junk', label: '垃圾清理', icon: markRaw(TrashIcon) }
+]
+
+const secondaryItems = [
+  { id: 'settings', label: '设置', icon: markRaw(SettingsIcon) }
 ]
 </script>
 
@@ -167,7 +176,7 @@ const navItems = [
   position: relative;
 }
 
-.nav-item:hover:not(.disabled) {
+.nav-item:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
 }
@@ -189,11 +198,6 @@ const navItems = [
   border-radius: 0 3px 3px 0;
 }
 
-.nav-item.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .nav-icon {
   width: 20px;
   height: 20px;
@@ -210,14 +214,6 @@ const navItems = [
 
 .nav-text {
   flex: 1;
-}
-
-.nav-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  color: #666666;
 }
 
 .sidebar-footer {

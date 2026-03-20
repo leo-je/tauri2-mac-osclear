@@ -140,14 +140,17 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NIcon, useMessage } from 'naive-ui'
+import { NButton, NIcon, useDialog, useMessage } from 'naive-ui'
 import { useJunkCleaner } from '../composables/useJunkCleaner'
+import { useSettings } from '../composables/useSettings'
 import CleanResultPanel from './CleanResultPanel.vue'
 import SearchIcon from './icons/SearchIcon.vue'
 import DeleteIcon from './icons/DeleteIcon.vue'
 import CheckCircleIcon from './icons/CheckCircleIcon.vue'
 
 const message = useMessage()
+const dialog = useDialog()
+const { settings } = useSettings()
 
 const {
   scanResult,
@@ -176,14 +179,29 @@ const startScan = async () => {
 }
 
 const handleClean = async () => {
-  try {
-    const result = await cleanSelected()
-    message.success(
-      `清理完成! 已清理 ${result.cleaned_count} 个项目，释放 ${formatSize(result.cleaned_size)}`
-    )
-  } catch (error) {
-    message.error('清理失败: ' + String(error))
+  const runClean = async () => {
+    try {
+      const result = await cleanSelected()
+      message.success(
+        `清理完成! 已清理 ${result.cleaned_count} 个项目，释放 ${formatSize(result.cleaned_size)}`
+      )
+    } catch (error) {
+      message.error('清理失败: ' + String(error))
+    }
   }
+
+  if (settings.confirmBeforeCleaning) {
+    dialog.warning({
+      title: '确认清理所选项目？',
+      content: `即将把 ${selectedItems.value.length} 个项目移入废纸篓，预计释放 ${formatSize(selectedSize.value)}。`,
+      positiveText: '确认清理',
+      negativeText: '取消',
+      onPositiveClick: runClean
+    })
+    return
+  }
+
+  await runClean()
 }
 </script>
 

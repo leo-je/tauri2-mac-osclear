@@ -126,6 +126,7 @@
 import { onMounted } from 'vue'
 import { NButton, NIcon, useMessage } from 'naive-ui'
 import { useMemory } from '../composables/useMemory'
+import { useSettings } from '../composables/useSettings'
 import RefreshIcon from './icons/RefreshIcon.vue'
 import MemoryIcon from './icons/MemoryIcon.vue'
 import ZapIcon from './icons/ZapIcon.vue'
@@ -133,6 +134,7 @@ import CheckCircleIcon from './icons/CheckCircleIcon.vue'
 import SparklesIcon from './icons/SparklesIcon.vue'
 
 const message = useMessage()
+const { settings } = useSettings()
 
 const {
   memoryInfo,
@@ -158,20 +160,20 @@ const handleFree = async () => {
 }
 
 const getPressureColor = () => {
-  if (memoryInfo.value.usage < 50) return '#00ff88'
-  if (memoryInfo.value.usage < 75) return '#f0ad4e'
+  if (memoryInfo.value.usage < settings.warningUsageThreshold) return '#00ff88'
+  if (memoryInfo.value.usage < settings.criticalUsageThreshold) return '#f0ad4e'
   return '#ff4757'
 }
 
 const getPressureClass = () => {
-  if (memoryInfo.value.usage < 50) return 'success'
-  if (memoryInfo.value.usage < 75) return 'warning'
+  if (memoryInfo.value.usage < settings.warningUsageThreshold) return 'success'
+  if (memoryInfo.value.usage < settings.criticalUsageThreshold) return 'warning'
   return 'error'
 }
 
 const getPressureStatus = () => {
-  if (memoryInfo.value.usage < 50) return '状态良好'
-  if (memoryInfo.value.usage < 75) return '状态一般'
+  if (memoryInfo.value.usage < settings.warningUsageThreshold) return '状态良好'
+  if (memoryInfo.value.usage < settings.criticalUsageThreshold) return '状态一般'
   return '需要清理'
 }
 

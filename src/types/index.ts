@@ -1,3 +1,14 @@
+export type AppView = 'dashboard' | 'memory' | 'junk' | 'settings'
+export type JunkScanTargetId =
+  | 'user_cache'
+  | 'logs'
+  | 'tmp'
+  | 'system_cache'
+  | 'xcode_derived_data'
+  | 'application_support'
+  | 'downloads'
+  | 'trash'
+
 export interface MemoryInfo {
   total: number
   used: number
@@ -19,6 +30,10 @@ export interface JunkScanResult {
   categories: [string, number][]
 }
 
+export interface JunkScanRequest {
+  target_ids: JunkScanTargetId[]
+}
+
 export interface CleanRequest {
   paths: string[]
 }
@@ -35,4 +50,22 @@ export interface SystemInfo {
   hostname: string
   cpu_count: number
   total_memory: number
+}
+
+export interface AppSettings {
+  startupView: AppView
+  showDashboardQuickActions: boolean
+  reduceMotion: boolean
+  autoSelectScanResults: boolean
+  confirmBeforeCleaning: boolean
+  enabledJunkTargets: JunkScanTargetId[]
+  rescanAfterCleaning: boolean
+  warningUsageThreshold: number
+  criticalUsageThreshold: number
+}
+
+export interface JunkScanTargetOption {
+  id: JunkScanTargetId
+  label: string
+  description: string
 }

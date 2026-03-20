@@ -1,8 +1,10 @@
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { JunkScanResult, CleanResult, CleanRequest } from '../types'
+import type { JunkScanResult, CleanResult, CleanRequest, JunkScanRequest } from '../types'
+import { useSettings } from './useSettings'
 
 export function useJunkCleaner() {
+  const { settings } = useSettings()
   const scanResult = ref<JunkScanResult>({
     items: [],
     total_size: 0,
@@ -21,18 +23,26 @@ export function useJunkCleaner() {
       .reduce((sum, item) => sum + item.size, 0)
   })
 
-  const scanJunkFiles = async () => {
+  const scanJunkFiles = async (options: { preserveLastCleanResult?: boolean } = {}) => {
     isScanning.value = true
     scanResult.value = { items: [], total_size: 0, categories: [] }
     selectedItems.value = []
     selectedCategories.value = []
-    lastCleanResult.value = null
+
+    if (!options.preserveLastCleanResult) {
+      lastCleanResult.value = null
+    }
 
     try {
-      const result = await invoke<JunkScanResult>('scan_junk_files')
+      const request: JunkScanRequest = {
+        target_ids: settings.enabledJunkTargets
+      }
+      const result = await invoke<JunkScanResult>('scan_junk_files', { request })
       scanResult.value = result
-      selectedItems.value = result.items.map(item => item.path)
-      selectedCategories.value = result.categories.map(([cat]) => cat)
+      if (settings.autoSelectScanResults) {
+        selectedItems.value = result.items.map(item => item.path)
+        selectedCategories.value = result.categories.map(([cat]) => cat)
+      }
       hasScanned.value = true
     } catch (error) {
       console.error('Failed to scan junk files:', error)
@@ -52,6 +62,15 @@ export function useJunkCleaner() {
       const request: CleanRequest = { paths: selectedItems.value }
       const result = await invoke<CleanResult>('clean_junk_files', { request })
       lastCleanResult.value = result
+
+      if (settings.rescanAfterCleaning) {
+        try {
+          await scanJunkFiles({ preserveLastCleanResult: true })
+        } catch (rescanError) {
+          console.error('Failed to rescan junk files after cleaning:', rescanError)
+        }
+      }
+
       return result
     } catch (error) {
       throw error

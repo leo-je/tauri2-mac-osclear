@@ -1,8 +1,9 @@
 <template>
-  <n-config-provider :theme="darkTheme">
-    <n-message-provider>
-      <n-dialog-provider>
-        <AppLayout :activeItem="currentView" @navigate="handleNavigate">
+  <div class="app-shell" :class="{ 'reduce-motion': settings.reduceMotion }">
+    <n-config-provider :theme="darkTheme">
+      <n-message-provider>
+        <n-dialog-provider>
+          <AppLayout :activeItem="currentView" @navigate="handleNavigate">
           <!-- Dashboard View -->
           <div v-if="currentView === 'dashboard'" class="dashboard-view">
             <div class="page-header">
@@ -72,7 +73,7 @@
               </div>
             </div>
 
-            <div class="quick-actions">
+            <div v-if="settings.showDashboardQuickActions" class="quick-actions">
               <h3 class="section-title">快速操作</h3>
               <div class="action-grid">
                 <div class="action-item" @click="currentView = 'memory'">
@@ -83,6 +84,10 @@
                   <SearchIcon />
                   <span>扫描垃圾文件</span>
                 </div>
+                <div class="action-item" @click="currentView = 'settings'">
+                  <SettingsIcon />
+                  <span>调整偏好设置</span>
+                </div>
               </div>
             </div>
           </div>
@@ -90,39 +95,48 @@
           <!-- Memory View -->
           <MemoryCard v-else-if="currentView === 'memory'" />
 
-          <!-- Junk View -->
-          <JunkCleanerCard v-else-if="currentView === 'junk'" />
-        </AppLayout>
-      </n-dialog-provider>
-    </n-message-provider>
-  </n-config-provider>
+            <!-- Junk View -->
+            <JunkCleanerCard v-else-if="currentView === 'junk'" />
+
+            <!-- Settings View -->
+            <SettingsPage v-else-if="currentView === 'settings'" />
+          </AppLayout>
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-config-provider>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import type { AppView } from './types'
 import { darkTheme, NConfigProvider, NMessageProvider, NDialogProvider, NProgress, NButton } from 'naive-ui'
 import AppLayout from './components/AppLayout.vue'
 import MemoryCard from './components/MemoryCard.vue'
 import JunkCleanerCard from './components/JunkCleanerCard.vue'
+import SettingsPage from './components/SettingsPage.vue'
 import MemoryIcon from './components/icons/MemoryIcon.vue'
 import TrashIcon from './components/icons/TrashIcon.vue'
 import ZapIcon from './components/icons/ZapIcon.vue'
 import SearchIcon from './components/icons/SearchIcon.vue'
+import SettingsIcon from './components/icons/SettingsIcon.vue'
 import { useMemory } from './composables/useMemory'
+import { useSettings } from './composables/useSettings'
 
-const currentView = ref('dashboard')
+const { settings } = useSettings()
+const currentView = ref<AppView>(settings.startupView)
 const { memoryInfo, startListening } = useMemory()
 
 const memoryUsage = computed(() => memoryInfo.value.usage)
 
 const getPressureColor = () => {
-  if (memoryUsage.value < 50) return '#00ff88'
-  if (memoryUsage.value < 75) return '#f0ad4e'
+  if (memoryUsage.value < settings.warningUsageThreshold) return '#00ff88'
+  if (memoryUsage.value < settings.criticalUsageThreshold) return '#f0ad4e'
   return '#ff4757'
 }
 
 const handleNavigate = (view: string) => {
-  currentView.value = view
+  currentView.value = view as AppView
 }
 
 onMounted(() => {
@@ -160,6 +174,19 @@ body {
   overflow: hidden;
   background: #1a1a2e;
   background-image: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.app-shell {
+  height: 100%;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 ::-webkit-scrollbar {
@@ -328,7 +355,7 @@ body {
 
 .action-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
