@@ -1,15 +1,30 @@
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
-    AppHandle, Emitter, Manager,
+    AppHandle, Emitter, Manager, State,
 };
+use tauri_plugin_notification::NotificationExt;
 use walkdir::WalkDir;
+
+pub struct PasswordState {
+    password: Mutex<Option<String>>,
+}
+
+impl PasswordState {
+    pub fn new() -> Self {
+        PasswordState {
+            password: Mutex::new(None),
+        }
+    }
+}
 
 fn start_system_monitor(app_handle: AppHandle, tray: TrayIcon) {
     thread::spawn(move || {
@@ -94,27 +109,145 @@ pub struct FreeMemoryResult {
 }
 
 #[tauri::command]
-async fn free_memory() -> Result<FreeMemoryResult, String> {
-    let before = get_memory_info_internal()?;
-    
-    let script = "do shell script \"purge\" with administrator privileges";
-    let output = Command::new("osascript")
-        .args(["-e", script])
+async fn setup_passwordless_purge() -> Result<String, String> {
+    let username = Command::new("whoami")
         .output()
-        .map_err(|e| format!("执行清理失败: {}", e))?;
+        .map_err(|e| format!("获取用户名失败: {}", e))?;
 
-    if !output.status.success() {
+    let username = String::from_utf8_lossy(&username.stdout).trim().to_string();
+
+    let sudoers_entry = format!("{} ALL=(ALL) NOPASSWD: /usr/sbin/purge", username);
+
+    let script = format!(
+        r#"do shell script "echo '{}' >> /etc/sudoers.d/macos-cleaner""#,
+        sudoers_entry.replace("'", "'\\''")
+    );
+
+    let output = Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("配置失败: {}", e))?;
+
+    if output.status.success() {
+        Ok("已配置免密清理内存".to_string())
+    } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("User canceled") || stderr.contains("-128") {
+        if stderr.contains("User canceled") {
             return Err("用户取消了授权".to_string());
         }
-        return Err(format!("清理失败: {}", stderr));
+        Err(format!("配置失败: {}", stderr))
+    }
+}
+
+#[tauri::command]
+async fn free_memory(password_state: State<'_, PasswordState>) -> Result<FreeMemoryResult, String> {
+    let before = get_memory_info_internal()?;
+
+    let mut success = false;
+
+    let no_password_output = Command::new("sudo")
+        .args(["-n", "purge"])
+        .output();
+
+    if let Ok(ref output) = no_password_output {
+        if output.status.success() {
+            success = true;
+        }
+    }
+
+    if !success {
+        let cached_password = {
+            let guard = password_state.password.lock().unwrap();
+            guard.clone()
+        };
+
+        if let Some(ref password) = cached_password {
+            let sudo_output = Command::new("sudo")
+                .args(["-S", "purge"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    if let Some(mut stdin) = child.stdin.take() {
+                        let _ = stdin.write_all(format!("{}\n", password).as_bytes());
+                    }
+                    child.wait_with_output()
+                });
+
+            if let Ok(ref output) = sudo_output {
+                if output.status.success() {
+                    success = true;
+                }
+            }
+        }
+    }
+
+    if !success {
+        let script = r#"
+            try
+                set result to display dialog "请输入管理员密码以清理内存:" default answer "" with hidden answer with title "macOS Cleaner"
+                return text returned of result
+            on error errMsg
+                if errMsg contains "User canceled" or errMsg contains "-128" then
+                    return "canceled"
+                end if
+                return "error: " & errMsg
+            end try
+        "#;
+
+        let password_output = Command::new("osascript")
+            .args(["-e", script])
+            .output()
+            .map_err(|e| format!("获取密码失败: {}", e))?;
+
+        let password_result = String::from_utf8_lossy(&password_output.stdout).trim().to_string();
+
+        if password_result == "canceled" {
+            return Err("用户取消了授权".to_string());
+        }
+
+        if password_result.starts_with("error:") {
+            return Err(format!("获取密码失败: {}", password_result));
+        }
+
+        let sudo_output = Command::new("sudo")
+            .args(["-S", "purge"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(format!("{}\n", password_result).as_bytes());
+                }
+                child.wait_with_output()
+            });
+
+        match sudo_output {
+            Ok(output) if output.status.success() => {
+                success = true;
+                let mut guard = password_state.password.lock().unwrap();
+                *guard = Some(password_result);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("密码错误或清理失败: {}", stderr));
+            }
+            Err(e) => {
+                return Err(format!("执行清理失败: {}", e));
+            }
+        }
+    }
+
+    if !success {
+        return Err("清理失败".to_string());
     }
 
     thread::sleep(Duration::from_millis(500));
-    
+
     let after = get_memory_info_internal()?;
-    
+
     let freed_bytes = if after.used < before.used {
         before.used - after.used
     } else {
@@ -379,6 +512,8 @@ async fn get_system_info() -> Result<serde_json::Value, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
+        .manage(PasswordState::new())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -399,17 +534,35 @@ pub fn run() {
             "clean" => {
                 let app_handle = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                    if let Ok(result) = free_memory().await {
-                        let msg = if result.freed_bytes > 0 {
-                            format!("已释放 {} 内存", format_size_display(result.freed_bytes))
-                        } else {
-                            "当前内存状态良好，无需清理".to_string()
-                        };
-                        let _ = app_handle.emit("tray-clean-result", msg);
+                    let password_state = app_handle.state::<PasswordState>();
+                    match free_memory(password_state).await {
+                        Ok(result) => {
+                            let msg = if result.freed_bytes > 0 {
+                                format!("已释放 {} 内存", format_size_display(result.freed_bytes))
+                            } else {
+                                "当前内存状态良好，无需清理".to_string()
+                            };
+                            match app_handle.notification()
+                                .builder()
+                                .title("macOS Cleaner")
+                                .body(&msg)
+                                .show() {
+                                Ok(_) => println!("通知发送成功"),
+                                Err(e) => println!("通知发送失败: {:?}", e),
+                            }
+                        }
+                        Err(e) => {
+                            if e != "用户取消了授权" {
+                                match app_handle.notification()
+                                    .builder()
+                                    .title("macOS Cleaner")
+                                    .body(&e)
+                                    .show() {
+                                    Ok(_) => println!("通知发送成功"),
+                                    Err(e) => println!("通知发送失败: {:?}", e),
+                                }
+                            }
+                        }
                     }
                 });
             }
@@ -421,6 +574,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_memory_info,
             free_memory,
+            setup_passwordless_purge,
             scan_junk_files,
             clean_junk_files,
             get_system_info
