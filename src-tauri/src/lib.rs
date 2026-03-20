@@ -4,7 +4,11 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
-use tauri::{AppHandle, Emitter};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{TrayIcon, TrayIconBuilder},
+    AppHandle, Emitter, Manager,
+};
 use walkdir::WalkDir;
 
 #[derive(Debug, Serialize, Clone)]
@@ -15,6 +19,12 @@ pub struct MemoryInfo {
     free: u64,
     reclaimable: u64,
     usage: f64,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SystemStatus {
+    cpu_usage: f32,
+    memory_usage: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -129,8 +139,29 @@ fn get_memory_info_internal() -> Result<MemoryInfo, String> {
     })
 }
 
-fn start_memory_monitor(app_handle: AppHandle) {
+fn get_system_status_internal() -> Result<SystemStatus, String> {
+    let mut sys = System::new_all();
+    sys.refresh_cpu_usage();
+    thread::sleep(Duration::from_millis(200));
+    sys.refresh_cpu_usage();
+
+    let cpu_usage = sys.global_cpu_usage();
+
+    let memory_info = get_memory_info_internal()?;
+
+    Ok(SystemStatus {
+        cpu_usage,
+        memory_usage: memory_info.usage,
+    })
+}
+
+fn start_system_monitor(app_handle: AppHandle, tray: TrayIcon) {
     thread::spawn(move || loop {
+        if let Ok(status) = get_system_status_internal() {
+            let _ = app_handle.emit("system-update", status.clone());
+            let text = format!("CPU: {:.0}%\nMEM: {:.0}%", status.cpu_usage, status.memory_usage);
+            let _ = tray.set_title(Some(text));
+        }
         if let Ok(memory_info) = get_memory_info_internal() {
             let _ = app_handle.emit("memory-update", memory_info);
         }
@@ -347,8 +378,43 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
-            start_memory_monitor(app_handle);
+
+            let clean_item = MenuItem::with_id(app, "clean", "清理内存", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&clean_item, &quit_item])?;
+
+            let tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .title("CPU: 0%\nMEM: 0%")
+                .build(app)?;
+
+            start_system_monitor(app_handle, tray);
+
             Ok(())
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "clean" => {
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                    if let Ok(result) = free_memory().await {
+                        let msg = if result.freed_bytes > 0 {
+                            format!("已释放 {} 内存", format_size_display(result.freed_bytes))
+                        } else {
+                            "当前内存状态良好，无需清理".to_string()
+                        };
+                        let _ = app_handle.emit("tray-clean-result", msg);
+                    }
+                });
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             get_memory_info,
@@ -359,4 +425,15 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn format_size_display(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let k = 1024.0;
+    let sizes = ["B", "KB", "MB", "GB", "TB"];
+    let i = (bytes as f64).log(k).floor() as usize;
+    let size = bytes as f64 / k.powi(i as i32);
+    format!("{:.2} {}", size, sizes[i.min(4)])
 }
