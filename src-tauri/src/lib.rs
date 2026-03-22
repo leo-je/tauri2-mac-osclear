@@ -9,7 +9,7 @@ use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
-    AppHandle, Emitter, Manager, State,
+    ActivationPolicy, AppHandle, Emitter, Manager, State, WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
 use walkdir::WalkDir;
@@ -548,15 +548,27 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             let clean_item = MenuItem::with_id(app, "clean", "清理内存", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show_main", "显示主界面", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&clean_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&clean_item, &show_item, &quit_item])?;
 
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .build(app)?;
 
-            start_system_monitor(app_handle, tray);
+            start_system_monitor(app_handle.clone(), tray);
+
+            let main_window = app.get_webview_window("main").unwrap();
+            main_window.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let window = app_handle.get_webview_window("main").unwrap();
+                    let _ = window.hide();
+                    let _ = app_handle.set_dock_visibility(false);
+                    let _ = app_handle.set_activation_policy(ActivationPolicy::Accessory);
+                }
+            });
 
             Ok(())
         })
@@ -595,6 +607,14 @@ pub fn run() {
                         }
                     }
                 });
+            }
+            "show_main" => {
+                let _ = app.set_dock_visibility(true);
+                let _ = app.set_activation_policy(ActivationPolicy::Regular);
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
             "quit" => {
                 app.exit(0);
