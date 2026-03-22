@@ -559,18 +559,18 @@ pub fn run() {
 
             start_system_monitor(app_handle.clone(), tray);
 
-            let main_window = app.get_webview_window("main").unwrap();
-            main_window.on_window_event(move |event| {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let window = app_handle.get_webview_window("main").unwrap();
-                    let _ = window.hide();
-                    let _ = app_handle.set_dock_visibility(false);
-                    let _ = app_handle.set_activation_policy(ActivationPolicy::Accessory);
-                }
-            });
-
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = window.app_handle().set_dock_visibility(false);
+                    let _ = window.app_handle().set_activation_policy(ActivationPolicy::Accessory);
+                }
+            }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "clean" => {
@@ -609,11 +609,15 @@ pub fn run() {
                 });
             }
             "show_main" => {
-                let _ = app.set_dock_visibility(true);
-                let _ = app.set_activation_policy(ActivationPolicy::Regular);
                 if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize();
                     let _ = window.show();
                     let _ = window.set_focus();
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = app.set_dock_visibility(true);
+                        let _ = app.set_activation_policy(ActivationPolicy::Regular);
+                    }
                 }
             }
             "quit" => {
