@@ -84,6 +84,8 @@ pub struct JunkScanResult {
 #[derive(Debug, Deserialize)]
 pub struct ScanJunkRequest {
     target_ids: Vec<String>,
+    downloads_min_age_days: Option<u64>,
+    downloads_min_size_mb: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,6 +104,7 @@ struct JunkScanTargetSpec {
     id: &'static str,
     category: &'static str,
     path: PathBuf,
+    is_downloads: bool,
 }
 
 #[tauri::command]
@@ -341,8 +344,22 @@ async fn scan_junk_files(request: Option<ScanJunkRequest>) -> Result<JunkScanRes
     let home = std::env::var("HOME").map_err(|e| format!("Failed to get HOME: {}", e))?;
 
     let selected_target_ids = request
-        .map(|scan_request| scan_request.target_ids)
+        .as_ref()
+        .map(|scan_request| scan_request.target_ids.clone())
         .unwrap_or_default();
+
+    let downloads_min_age_days = request
+        .as_ref()
+        .and_then(|r| r.downloads_min_age_days)
+        .unwrap_or(30);
+
+    let downloads_min_size_bytes = request
+        .as_ref()
+        .and_then(|r| r.downloads_min_size_mb)
+        .unwrap_or(100) * 1024 * 1024;
+
+    let now = std::time::SystemTime::now();
+    let min_age_duration = std::time::Duration::from_secs(downloads_min_age_days * 24 * 60 * 60);
 
     let junk_paths = get_selected_junk_scan_targets(&home, &selected_target_ids);
 
@@ -361,21 +378,52 @@ async fn scan_junk_files(request: Option<ScanJunkRequest>) -> Result<JunkScanRes
                 let metadata = entry.metadata();
                 if let Ok(meta) = metadata {
                     let size = meta.len();
-                    if size > 1024 * 1024 {
-                        items.push(JunkItem {
-                            path: entry.path().to_string_lossy().to_string(),
-                            size,
-                            category: target.category.to_string(),
-                        });
+
+                    if target.is_downloads {
+                        if size < downloads_min_size_bytes {
+                            continue;
+                        }
+
+                        if let Ok(modified) = meta.modified() {
+                            if let Ok(age) = now.duration_since(modified) {
+                                if age < min_age_duration {
+                                    continue;
+                                }
+                            }
+                        }
+                    } else if size <= 1024 * 1024 {
+                        continue;
                     }
+
+                    items.push(JunkItem {
+                        path: entry.path().to_string_lossy().to_string(),
+                        size,
+                        category: target.category.to_string(),
+                    });
                 }
             }
         } else if path.is_file() {
             let metadata = path.metadata();
             if let Ok(meta) = metadata {
+                let size = meta.len();
+
+                if target.is_downloads {
+                    if size < downloads_min_size_bytes {
+                        continue;
+                    }
+
+                    if let Ok(modified) = meta.modified() {
+                        if let Ok(age) = now.duration_since(modified) {
+                            if age < min_age_duration {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
                 items.push(JunkItem {
                     path: path.to_string_lossy().to_string(),
-                    size: meta.len(),
+                    size,
                     category: target.category.to_string(),
                 });
             }
@@ -410,41 +458,49 @@ fn get_selected_junk_scan_targets(home: &str, selected_ids: &[String]) -> Vec<Ju
             id: "user_cache",
             category: "用户缓存",
             path: PathBuf::from(format!("{}/Library/Caches", home)),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "logs",
             category: "日志文件",
             path: PathBuf::from(format!("{}/Library/Logs", home)),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "tmp",
             category: "临时文件",
             path: PathBuf::from("/tmp"),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "system_cache",
             category: "系统缓存",
             path: PathBuf::from("/Library/Caches"),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "xcode_derived_data",
             category: "Xcode 派生数据",
             path: PathBuf::from(format!("{}/Library/Developer/Xcode/DerivedData", home)),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "application_support",
             category: "应用支持文件",
             path: PathBuf::from(format!("{}/Library/Application Support", home)),
+            is_downloads: false,
         },
         JunkScanTargetSpec {
             id: "downloads",
             category: "下载文件",
             path: PathBuf::from(format!("{}/Downloads", home)),
+            is_downloads: true,
         },
         JunkScanTargetSpec {
             id: "trash",
             category: "废纸篓",
             path: PathBuf::from(format!("{}/.Trash", home)),
+            is_downloads: false,
         },
     ];
 

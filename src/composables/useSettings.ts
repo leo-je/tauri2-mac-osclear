@@ -14,7 +14,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   enabledJunkTargets: [...DEFAULT_JUNK_SCAN_TARGET_IDS],
   rescanAfterCleaning: true,
   warningUsageThreshold: 70,
-  criticalUsageThreshold: 85
+  criticalUsageThreshold: 85,
+  downloadsMinAgeDays: 30,
+  downloadsMinSizeMB: 100
 }
 
 const clamp = (value: number, min: number, max: number) => {
@@ -50,7 +52,17 @@ const normalizeSettings = (value: Partial<AppSettings> | null | undefined): AppS
         : [...DEFAULT_SETTINGS.enabledJunkTargets],
     rescanAfterCleaning: value?.rescanAfterCleaning ?? DEFAULT_SETTINGS.rescanAfterCleaning,
     warningUsageThreshold,
-    criticalUsageThreshold
+    criticalUsageThreshold,
+    downloadsMinAgeDays: clamp(
+      Number(value?.downloadsMinAgeDays ?? DEFAULT_SETTINGS.downloadsMinAgeDays) || DEFAULT_SETTINGS.downloadsMinAgeDays,
+      0,
+      365
+    ),
+    downloadsMinSizeMB: clamp(
+      Number(value?.downloadsMinSizeMB ?? DEFAULT_SETTINGS.downloadsMinSizeMB) || DEFAULT_SETTINGS.downloadsMinSizeMB,
+      10,
+      10240
+    )
   }
 }
 

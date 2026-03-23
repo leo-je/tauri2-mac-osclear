@@ -35,7 +35,9 @@ export function useJunkCleaner() {
 
     try {
       const request: JunkScanRequest = {
-        target_ids: settings.enabledJunkTargets
+        target_ids: settings.enabledJunkTargets,
+        downloads_min_age_days: settings.downloadsMinAgeDays,
+        downloads_min_size_mb: settings.downloadsMinSizeMB
       }
       const result = await invoke<JunkScanResult>('scan_junk_files', { request })
       scanResult.value = result

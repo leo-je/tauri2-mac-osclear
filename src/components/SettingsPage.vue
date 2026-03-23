@@ -120,6 +120,54 @@
       <section class="settings-card">
         <div class="card-head">
           <div>
+            <h2>下载文件过滤</h2>
+            <p>避免误删有用的下载文件。</p>
+          </div>
+          <span class="card-tag">策略</span>
+        </div>
+
+        <div class="setting-list">
+          <div class="setting-row vertical">
+            <div class="setting-copy">
+              <span class="setting-title">最小文件年龄（天）</span>
+              <span class="setting-description">只有超过这个天数的下载文件才会被扫描为垃圾。设为 0 可禁用下载文件扫描。</span>
+            </div>
+            <div class="threshold-control">
+              <n-slider
+                class="slider-control"
+                :value="settings.downloadsMinAgeDays"
+                :min="0"
+                :max="180"
+                :step="1"
+                @update:value="handleDownloadsMinAgeChange"
+              />
+              <span class="threshold-value">{{ settings.downloadsMinAgeDays }}天</span>
+            </div>
+          </div>
+
+          <div class="setting-row vertical">
+            <div class="setting-copy">
+              <span class="setting-title">最小文件大小（MB）</span>
+              <span class="setting-description">只有大于这个大小的下载文件才会被考虑清理。</span>
+            </div>
+            <div class="threshold-control">
+              <n-slider
+                class="slider-control"
+                :value="settings.downloadsMinSizeMB"
+                :min="10"
+                :max="1000"
+                :step="10"
+                @update:value="handleDownloadsMinSizeChange"
+              />
+              <span class="threshold-value">{{ settings.downloadsMinSizeMB }}MB</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-card">
+        <div class="card-head">
+          <div>
             <h2>内存提醒阈值</h2>
             <p>设置“注意”和“紧张”状态的分界线。</p>
           </div>
@@ -267,6 +315,14 @@ const handleWarningThresholdChange = (value: number) => {
 
 const handleCriticalThresholdChange = (value: number) => {
   updateSettings({ criticalUsageThreshold: value })
+}
+
+const handleDownloadsMinAgeChange = (value: number) => {
+  updateSettings({ downloadsMinAgeDays: value })
+}
+
+const handleDownloadsMinSizeChange = (value: number) => {
+  updateSettings({ downloadsMinSizeMB: value })
 }
 
 const handleReset = () => {

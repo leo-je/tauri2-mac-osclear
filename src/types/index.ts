@@ -45,6 +45,8 @@ export interface JunkScanResult {
 
 export interface JunkScanRequest {
   target_ids: JunkScanTargetId[]
+  downloads_min_age_days: number
+  downloads_min_size_mb: number
 }
 
 export interface CleanRequest {
@@ -75,6 +77,8 @@ export interface AppSettings {
   rescanAfterCleaning: boolean
   warningUsageThreshold: number
   criticalUsageThreshold: number
+  downloadsMinAgeDays: number
+  downloadsMinSizeMB: number
 }
 
 export interface JunkScanTargetOption {
