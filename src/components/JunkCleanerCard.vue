@@ -26,8 +26,12 @@
       </n-button>
     </div>
 
-    <SystemJunkCleanerPanel v-if="activePanel === 'system'" />
-    <UninstalledAppsCleanerPanel v-else />
+    <div v-show="activePanel === 'system'">
+      <SystemJunkCleanerPanel />
+    </div>
+    <div v-show="activePanel === 'uninstalledApps'">
+      <UninstalledAppsCleanerPanel />
+    </div>
   </div>
 </template>
 
