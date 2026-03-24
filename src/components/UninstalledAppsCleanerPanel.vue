@@ -38,11 +38,11 @@
             v-for="app in scanResult.apps"
             :key="app.app_id"
             class="category-card"
-            :class="{ active: isAppFullySelected(app) }"
-            @click="toggleApp(app.app_id)"
+            :class="{ active: expandedAppId === app.app_id }"
+            @click="expandedAppId = app.app_id"
           >
             <div class="category-checkbox">
-              <div class="checkbox-inner" :class="{ checked: isAppFullySelected(app) }">
+              <div class="checkbox-inner" :class="{ checked: isAppFullySelected(app) }" @click.stop="toggleApp(app.app_id)">
                 <CheckCircleIcon v-if="isAppFullySelected(app)" />
               </div>
             </div>
@@ -53,41 +53,42 @@
                 {{ app.items.length }} 项 · {{ formatSize(app.total_size) }}
               </span>
             </div>
+            <span class="category-action">查看详情</span>
           </div>
         </div>
       </div>
 
-      <div class="items-section">
+      <div v-if="activeApp" class="items-section">
         <div class="section-header">
-          <h3 class="section-title">残留详情</h3>
+          <div class="detail-title-group">
+            <h3 class="section-title">{{ activeApp.app_name }} 的残留详情</h3>
+            <span v-if="activeApp.identifier" class="detail-subtitle">{{ activeApp.identifier }}</span>
+          </div>
           <div class="section-actions">
+            <n-button size="small" quaternary @click="toggleApp(activeApp.app_id)">选择此程序</n-button>
             <n-button size="small" quaternary @click="selectAll">全选</n-button>
             <n-button size="small" quaternary @click="deselectAll">取消全选</n-button>
           </div>
         </div>
 
         <div class="app-groups">
-          <div
-            v-for="app in scanResult.apps"
-            :key="app.app_id"
-            class="app-group"
-          >
-            <div class="app-group-header" @click="toggleApp(app.app_id)">
+          <div class="app-group">
+            <div class="app-group-header">
               <div class="item-checkbox">
-                <div class="checkbox-inner" :class="{ checked: isAppFullySelected(app) }">
-                  <CheckCircleIcon v-if="isAppFullySelected(app)" />
+                <div class="checkbox-inner" :class="{ checked: isAppFullySelected(activeApp) }" @click.stop="toggleApp(activeApp.app_id)">
+                  <CheckCircleIcon v-if="isAppFullySelected(activeApp)" />
                 </div>
               </div>
               <div class="app-group-info">
-                <span class="app-group-name">{{ app.app_name }}</span>
-                <span v-if="app.identifier" class="app-group-identifier">{{ app.identifier }}</span>
+                <span class="app-group-name">{{ activeApp.app_name }}</span>
+                <span v-if="activeApp.identifier" class="app-group-identifier">{{ activeApp.identifier }}</span>
               </div>
-              <span class="app-group-size">{{ formatSize(app.total_size) }}</span>
+              <span class="app-group-size">{{ formatSize(activeApp.total_size) }}</span>
             </div>
 
             <div class="junk-list">
               <div
-                v-for="item in app.items"
+                v-for="item in activeApp.items"
                 :key="item.path"
                 class="junk-item"
                 :class="{ selected: selectedItems.includes(item.path) }"
@@ -157,6 +158,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import { NButton, NIcon, useDialog, useMessage } from 'naive-ui'
 import { useSettings } from '../composables/useSettings'
 import { useUninstalledAppsCleaner } from '../composables/useUninstalledAppsCleaner'
@@ -168,6 +170,7 @@ import CheckCircleIcon from './icons/CheckCircleIcon.vue'
 const message = useMessage()
 const dialog = useDialog()
 const { settings } = useSettings()
+const expandedAppId = ref<string | null>(null)
 
 const {
   scanResult,
@@ -187,6 +190,27 @@ const {
   deselectAll,
   formatSize
 } = useUninstalledAppsCleaner()
+
+const activeApp = computed(() => {
+  if (!scanResult.value.apps.length) return null
+  if (!expandedAppId.value) return scanResult.value.apps[0]
+  return scanResult.value.apps.find(app => app.app_id === expandedAppId.value) ?? scanResult.value.apps[0]
+})
+
+watch(
+  () => scanResult.value.apps,
+  apps => {
+    if (!apps.length) {
+      expandedAppId.value = null
+      return
+    }
+
+    if (!expandedAppId.value || !apps.some(app => app.app_id === expandedAppId.value)) {
+      expandedAppId.value = apps[0].app_id
+    }
+  },
+  { immediate: true }
+)
 
 const startScan = async () => {
   try {
@@ -354,6 +378,15 @@ const handleClean = async () => {
   border-color: rgba(0, 122, 255, 0.3);
 }
 
+.category-action {
+  margin-left: auto;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #66b3ff;
+  white-space: nowrap;
+}
+
 .category-checkbox,
 .item-checkbox {
   width: 24px;
@@ -418,6 +451,18 @@ const handleClean = async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.detail-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-subtitle {
+  font-size: 12px;
+  color: #8892b0;
+  word-break: break-all;
 }
 
 .section-actions {
