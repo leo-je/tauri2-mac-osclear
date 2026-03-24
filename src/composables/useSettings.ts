@@ -54,12 +54,12 @@ const normalizeSettings = (value: Partial<AppSettings> | null | undefined): AppS
     warningUsageThreshold,
     criticalUsageThreshold,
     downloadsMinAgeDays: clamp(
-      Number(value?.downloadsMinAgeDays ?? DEFAULT_SETTINGS.downloadsMinAgeDays) || DEFAULT_SETTINGS.downloadsMinAgeDays,
+      Number(value?.downloadsMinAgeDays ?? DEFAULT_SETTINGS.downloadsMinAgeDays),
       0,
       365
     ),
     downloadsMinSizeMB: clamp(
-      Number(value?.downloadsMinSizeMB ?? DEFAULT_SETTINGS.downloadsMinSizeMB) || DEFAULT_SETTINGS.downloadsMinSizeMB,
+      Number(value?.downloadsMinSizeMB ?? DEFAULT_SETTINGS.downloadsMinSizeMB),
       10,
       10240
     )
