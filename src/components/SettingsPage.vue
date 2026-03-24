@@ -83,6 +83,29 @@
         </div>
       </section>
 
+      <section class="settings-card wide">
+        <div class="card-head">
+          <div>
+            <h2>扫描目标</h2>
+            <p>选择需要扫描的系统目录。</p>
+          </div>
+          <span class="card-tag">目标</span>
+        </div>
+
+        <div class="target-grid">
+          <div
+            v-for="target in junkTargets"
+            :key="target.id"
+            class="target-chip"
+            :class="{ active: settings.enabledJunkTargets.includes(target.id) }"
+            @click="toggleTarget(target.id)"
+          >
+            <span class="target-label">{{ target.label }}</span>
+            <span class="target-desc">{{ target.description }}</span>
+          </div>
+        </div>
+      </section>
+
       <section class="settings-card">
         <div class="card-head">
           <div>
@@ -112,6 +135,17 @@
             <n-switch
               :value="settings.confirmBeforeCleaning"
               @update:value="value => updateSettings({ confirmBeforeCleaning: value })"
+            />
+          </div>
+
+          <div class="setting-row compact">
+            <div class="setting-copy">
+              <span class="setting-title">清理后重新扫描</span>
+              <span class="setting-description">清理完成后自动重新扫描，检查是否还有残留文件。</span>
+            </div>
+            <n-switch
+              :value="settings.rescanAfterCleaning"
+              @update:value="value => updateSettings({ rescanAfterCleaning: value })"
             />
           </div>
         </div>
@@ -263,7 +297,8 @@ import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { NButton, NSelect, NSlider, NSwitch, useMessage } from 'naive-ui'
 import { useSettings } from '../composables/useSettings'
-import type { AppView, SystemInfo } from '../types'
+import { JUNK_SCAN_TARGETS } from '../constants/junkScanTargets'
+import type { AppView, SystemInfo, JunkScanTargetId } from '../types'
 
 const message = useMessage()
 const { settings, updateSettings, resetSettings } = useSettings()
@@ -281,6 +316,19 @@ const viewOptions = [
 const startupViewLabel = computed(() => {
   return viewOptions.find(option => option.value === settings.startupView)?.label ?? '系统总览'
 })
+
+const junkTargets = JUNK_SCAN_TARGETS
+
+const toggleTarget = (id: JunkScanTargetId) => {
+  const current = [...settings.enabledJunkTargets]
+  const index = current.indexOf(id)
+  if (index > -1) {
+    current.splice(index, 1)
+  } else {
+    current.push(id)
+  }
+  updateSettings({ enabledJunkTargets: current })
+}
 
 const formatSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
@@ -565,6 +613,49 @@ onMounted(() => {
   color: #7bc4ff;
 }
 
+.target-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.target-chip {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(7, 13, 28, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.target-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.target-chip.active {
+  background: rgba(64, 190, 255, 0.15);
+  border-color: rgba(64, 190, 255, 0.4);
+}
+
+.target-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.target-desc {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #90a1c0;
+}
+
+.target-chip.active .target-label {
+  color: #7bc4ff;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -621,7 +712,8 @@ onMounted(() => {
 
   .settings-hero,
   .settings-grid,
-  .info-grid {
+  .info-grid,
+  .target-grid {
     grid-template-columns: 1fr;
   }
 
