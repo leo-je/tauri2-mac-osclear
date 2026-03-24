@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
@@ -81,6 +83,29 @@ pub struct JunkScanResult {
     categories: Vec<(String, u64)>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct UninstalledAppJunkItem {
+    path: String,
+    size: u64,
+    category: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct UninstalledAppJunkApp {
+    app_id: String,
+    app_name: String,
+    identifier: Option<String>,
+    total_size: u64,
+    items: Vec<UninstalledAppJunkItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UninstalledAppJunkScanResult {
+    apps: Vec<UninstalledAppJunkApp>,
+    total_size: u64,
+    total_items: usize,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ScanJunkRequest {
     target_ids: Vec<String>,
@@ -106,6 +131,31 @@ struct JunkScanTargetSpec {
     path: PathBuf,
     is_downloads: bool,
 }
+
+struct InstalledAppsIndex {
+    bundle_ids: HashSet<String>,
+    normalized_names: HashSet<String>,
+}
+
+struct AppResidualCandidate {
+    app_id: String,
+    app_name: String,
+    identifier: Option<String>,
+    source_key: String,
+    item: UninstalledAppJunkItem,
+}
+
+struct AppResidualGroupAccumulator {
+    app_id: String,
+    app_name: String,
+    identifier: Option<String>,
+    total_size: u64,
+    source_keys: HashSet<String>,
+    items: Vec<UninstalledAppJunkItem>,
+}
+
+const MIN_APP_RESIDUAL_ITEM_SIZE: u64 = 16 * 1024;
+const MIN_APP_RESIDUAL_GROUP_SIZE: u64 = 2 * 1024 * 1024;
 
 #[tauri::command]
 async fn get_memory_info() -> Result<MemoryInfo, String> {
@@ -335,6 +385,308 @@ fn get_system_status_internal() -> Result<SystemStatus, String> {
     Ok(SystemStatus {
         cpu_usage,
         memory_usage: memory_info.usage,
+    })
+}
+
+fn normalize_app_name(name: &str) -> String {
+    name.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect()
+}
+
+fn is_bundle_identifier(value: &str) -> bool {
+    let parts: Vec<&str> = value.split('.').filter(|part| !part.is_empty()).collect();
+    if parts.len() < 2 {
+        return false;
+    }
+
+    parts.iter().all(|part| {
+        part.chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    })
+}
+
+fn prettify_label(value: &str) -> String {
+    let cleaned = value
+        .replace(['_', '-'], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if cleaned.is_empty() {
+        value.to_string()
+    } else {
+        cleaned
+    }
+}
+
+fn guess_app_name_from_identifier(identifier: &str) -> String {
+    let last_segment = identifier.rsplit('.').next().unwrap_or(identifier);
+    prettify_label(last_segment)
+}
+
+fn get_path_size(path: &Path) -> u64 {
+    if path.is_file() {
+        return path.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+    }
+
+    WalkDir::new(path)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| entry.metadata().ok())
+        .map(|metadata| metadata.len())
+        .sum()
+}
+
+fn collect_installed_apps_from_root(root: &Path, index: &mut InstalledAppsIndex) {
+    if !root.exists() {
+        return;
+    }
+
+    for entry in WalkDir::new(root)
+        .min_depth(1)
+        .max_depth(3)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        if !entry.file_type().is_dir() {
+            continue;
+        }
+
+        let path = entry.path();
+        let is_app_bundle = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.eq_ignore_ascii_case("app"))
+            .unwrap_or(false);
+
+        if !is_app_bundle {
+            continue;
+        }
+
+        let fallback_name = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_string();
+
+        if !fallback_name.is_empty() {
+            index
+                .normalized_names
+                .insert(normalize_app_name(&fallback_name));
+        }
+
+        let info_plist_path = path.join("Contents/Info.plist");
+        if let Ok(plist::Value::Dictionary(dict)) = plist::Value::from_file(&info_plist_path) {
+            if let Some(bundle_identifier) = dict
+                .get("CFBundleIdentifier")
+                .and_then(|value| value.as_string())
+                .map(|value| value.to_lowercase())
+            {
+                index.bundle_ids.insert(bundle_identifier);
+            }
+
+            for key in ["CFBundleDisplayName", "CFBundleName"] {
+                if let Some(app_name) = dict.get(key).and_then(|value| value.as_string()) {
+                    index.normalized_names.insert(normalize_app_name(app_name));
+                }
+            }
+        }
+    }
+}
+
+fn get_installed_apps_index(home: &str) -> InstalledAppsIndex {
+    let mut index = InstalledAppsIndex {
+        bundle_ids: HashSet::new(),
+        normalized_names: HashSet::new(),
+    };
+
+    for root in [
+        PathBuf::from("/Applications"),
+        PathBuf::from(format!("{}/Applications", home)),
+    ] {
+        collect_installed_apps_from_root(&root, &mut index);
+    }
+
+    index
+}
+
+fn build_residual_candidate(
+    path: &Path,
+    category: &str,
+    source_key: &str,
+    strip_suffix: Option<&str>,
+    installed_apps: &InstalledAppsIndex,
+) -> Option<AppResidualCandidate> {
+    let file_name = path.file_name()?.to_str()?.to_string();
+    let logical_name = strip_suffix
+        .and_then(|suffix| file_name.strip_suffix(suffix))
+        .unwrap_or(&file_name)
+        .trim();
+
+    if logical_name.is_empty() {
+        return None;
+    }
+
+    let bundle_identifier = if is_bundle_identifier(logical_name) {
+        Some(logical_name.to_string())
+    } else {
+        None
+    };
+
+    if let Some(identifier) = &bundle_identifier {
+        if installed_apps
+            .bundle_ids
+            .contains(&identifier.to_lowercase())
+        {
+            return None;
+        }
+    }
+
+    let normalized_name = normalize_app_name(logical_name);
+    if normalized_name.is_empty() || installed_apps.normalized_names.contains(&normalized_name) {
+        return None;
+    }
+
+    let size = get_path_size(path);
+    if size < MIN_APP_RESIDUAL_ITEM_SIZE {
+        return None;
+    }
+
+    let app_name = bundle_identifier
+        .as_deref()
+        .map(guess_app_name_from_identifier)
+        .unwrap_or_else(|| prettify_label(logical_name));
+
+    Some(AppResidualCandidate {
+        app_id: bundle_identifier
+            .as_ref()
+            .map(|identifier| identifier.to_lowercase())
+            .unwrap_or(normalized_name),
+        app_name,
+        identifier: bundle_identifier,
+        source_key: source_key.to_string(),
+        item: UninstalledAppJunkItem {
+            path: path.to_string_lossy().to_string(),
+            size,
+            category: category.to_string(),
+        },
+    })
+}
+
+#[tauri::command]
+async fn scan_uninstalled_app_junk() -> Result<UninstalledAppJunkScanResult, String> {
+    let home = std::env::var("HOME").map_err(|e| format!("Failed to get HOME: {}", e))?;
+    let installed_apps = get_installed_apps_index(&home);
+
+    let scan_roots: Vec<(&str, String, Option<&str>)> = vec![
+        ("应用支持文件", format!("{}/Library/Application Support", home), None),
+        ("缓存文件", format!("{}/Library/Caches", home), None),
+        ("日志文件", format!("{}/Library/Logs", home), None),
+        ("偏好设置", format!("{}/Library/Preferences", home), Some(".plist")),
+        (
+            "保存的应用状态",
+            format!("{}/Library/Saved Application State", home),
+            Some(".savedState"),
+        ),
+        ("WebKit 数据", format!("{}/Library/WebKit", home), None),
+        ("HTTP 缓存", format!("{}/Library/HTTPStorages", home), None),
+        ("应用容器", format!("{}/Library/Containers", home), None),
+        ("群组容器", format!("{}/Library/Group Containers", home), None),
+    ];
+
+    let mut grouped_apps: HashMap<String, AppResidualGroupAccumulator> = HashMap::new();
+
+    for (category, root, strip_suffix) in scan_roots {
+        let root_path = PathBuf::from(&root);
+        if !root_path.exists() {
+            continue;
+        }
+
+        let Ok(entries) = fs::read_dir(&root_path) else {
+            continue;
+        };
+
+        for entry in entries.filter_map(|entry| entry.ok()) {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            let entry_path = entry.path();
+            let Some(candidate) = build_residual_candidate(
+                &entry_path,
+                category,
+                &root,
+                strip_suffix,
+                &installed_apps,
+            ) else {
+                continue;
+            };
+
+            let group = grouped_apps
+                .entry(candidate.app_id.clone())
+                .or_insert_with(|| AppResidualGroupAccumulator {
+                    app_id: candidate.app_id.clone(),
+                    app_name: candidate.app_name.clone(),
+                    identifier: candidate.identifier.clone(),
+                    total_size: 0,
+                    source_keys: HashSet::new(),
+                    items: Vec::new(),
+                });
+
+            if group.identifier.is_none() && candidate.identifier.is_some() {
+                group.identifier = candidate.identifier.clone();
+            }
+
+            if candidate.identifier.is_none()
+                && !candidate.app_name.is_empty()
+                && candidate.app_name.len() <= group.app_name.len()
+            {
+                group.app_name = candidate.app_name.clone();
+            }
+
+            group.total_size += candidate.item.size;
+            group.source_keys.insert(candidate.source_key.clone());
+            group.items.push(candidate.item);
+        }
+    }
+
+    let mut apps: Vec<UninstalledAppJunkApp> = grouped_apps
+        .into_values()
+        .filter(|group| {
+            group.identifier.is_some()
+                || group.source_keys.len() >= 2
+                || group.total_size >= MIN_APP_RESIDUAL_GROUP_SIZE
+        })
+        .map(|mut group| {
+            group
+                .items
+                .sort_by(|left, right| right.size.cmp(&left.size));
+
+            UninstalledAppJunkApp {
+                app_id: group.app_id,
+                app_name: group.app_name,
+                identifier: group.identifier,
+                total_size: group.total_size,
+                items: group.items,
+            }
+        })
+        .collect();
+
+    apps.sort_by(|left, right| right.total_size.cmp(&left.total_size));
+
+    let total_size = apps.iter().map(|app| app.total_size).sum();
+    let total_items = apps.iter().map(|app| app.items.len()).sum();
+
+    Ok(UninstalledAppJunkScanResult {
+        apps,
+        total_size,
+        total_items,
     })
 }
 
@@ -687,6 +1039,7 @@ pub fn run() {
             free_memory,
             setup_passwordless_purge,
             scan_junk_files,
+            scan_uninstalled_app_junk,
             clean_junk_files,
             get_system_info
         ])

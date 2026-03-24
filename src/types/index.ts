@@ -43,6 +43,26 @@ export interface JunkScanResult {
   categories: [string, number][]
 }
 
+export interface UninstalledAppJunkItem {
+  path: string
+  size: number
+  category: string
+}
+
+export interface UninstalledAppJunkApp {
+  app_id: string
+  app_name: string
+  identifier: string | null
+  total_size: number
+  items: UninstalledAppJunkItem[]
+}
+
+export interface UninstalledAppJunkScanResult {
+  apps: UninstalledAppJunkApp[]
+  total_size: number
+  total_items: number
+}
+
 export interface JunkScanRequest {
   target_ids: JunkScanTargetId[]
   downloads_min_age_days: number

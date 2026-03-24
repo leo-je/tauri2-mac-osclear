@@ -2011,6 +2011,7 @@ dependencies = [
 name = "macos-cleaner"
 version = "1.0.0"
 dependencies = [
+ "plist",
  "serde",
  "serde_json",
  "sysinfo",
