@@ -135,6 +135,14 @@ struct JunkScanTargetSpec {
 struct InstalledAppsIndex {
     bundle_ids: HashSet<String>,
     normalized_names: HashSet<String>,
+    apps: Vec<InstalledAppRecord>,
+}
+
+#[derive(Clone)]
+struct InstalledAppRecord {
+    normalized_name: String,
+    base_normalized_name: String,
+    version_key: Option<String>,
 }
 
 struct AppResidualCandidate {
@@ -143,6 +151,7 @@ struct AppResidualCandidate {
     identifier: Option<String>,
     source_key: String,
     item: UninstalledAppJunkItem,
+    is_old_version: bool,
 }
 
 struct AppResidualGroupAccumulator {
@@ -152,6 +161,7 @@ struct AppResidualGroupAccumulator {
     total_size: u64,
     source_keys: HashSet<String>,
     items: Vec<UninstalledAppJunkItem>,
+    has_old_version_items: bool,
 }
 
 const MIN_APP_RESIDUAL_ITEM_SIZE: u64 = 16 * 1024;
@@ -395,6 +405,49 @@ fn normalize_app_name(name: &str) -> String {
         .collect()
 }
 
+fn normalize_version_key(value: &str) -> Option<String> {
+    let normalized: String = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect();
+
+    if normalized.chars().any(|ch| ch.is_ascii_digit()) {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
+fn is_version_like(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().any(|ch| ch.is_ascii_digit())
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | '(' | ')'))
+}
+
+fn extract_name_and_version(value: &str) -> (String, Option<String>) {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return (String::new(), None);
+    }
+
+    for separator in [' ', '-', '_', '('] {
+        if let Some(index) = trimmed.rfind(separator) {
+            let suffix = trimmed[index + 1..].trim_matches(|ch: char| {
+                ch.is_ascii_whitespace() || matches!(ch, '-' | '_' | '(' | ')')
+            });
+            if is_version_like(suffix) {
+                let base = trimmed[..index].trim().trim_end_matches('(').trim();
+                return (base.to_string(), normalize_version_key(suffix));
+            }
+        }
+    }
+
+    (trimmed.to_string(), None)
+}
+
 fn is_bundle_identifier(value: &str) -> bool {
     let parts: Vec<&str> = value.split('.').filter(|part| !part.is_empty()).collect();
     if parts.len() < 2 {
@@ -471,6 +524,9 @@ fn collect_installed_apps_from_root(root: &Path, index: &mut InstalledAppsIndex)
             .unwrap_or_default()
             .to_string();
 
+        let mut app_name = fallback_name.clone();
+        let mut version_key = None;
+
         if !fallback_name.is_empty() {
             index
                 .normalized_names
@@ -488,10 +544,39 @@ fn collect_installed_apps_from_root(root: &Path, index: &mut InstalledAppsIndex)
             }
 
             for key in ["CFBundleDisplayName", "CFBundleName"] {
-                if let Some(app_name) = dict.get(key).and_then(|value| value.as_string()) {
-                    index.normalized_names.insert(normalize_app_name(app_name));
+                if let Some(plist_app_name) = dict.get(key).and_then(|value| value.as_string()) {
+                    index.normalized_names.insert(normalize_app_name(plist_app_name));
+                    if !plist_app_name.trim().is_empty() {
+                        app_name = plist_app_name.to_string();
+                    }
                 }
             }
+
+            version_key = dict
+                .get("CFBundleShortVersionString")
+                .and_then(|value| value.as_string())
+                .and_then(normalize_version_key)
+                .or_else(|| {
+                    dict.get("CFBundleVersion")
+                        .and_then(|value| value.as_string())
+                        .and_then(normalize_version_key)
+                });
+        }
+
+        let normalized_name = normalize_app_name(&app_name);
+        let (base_name, embedded_version) = extract_name_and_version(&app_name);
+        let base_normalized_name = normalize_app_name(&base_name);
+
+        if !normalized_name.is_empty() {
+            index.apps.push(InstalledAppRecord {
+                normalized_name,
+                base_normalized_name: if base_normalized_name.is_empty() {
+                    normalize_app_name(&fallback_name)
+                } else {
+                    base_normalized_name
+                },
+                version_key: version_key.or(embedded_version),
+            });
         }
     }
 }
@@ -500,6 +585,7 @@ fn get_installed_apps_index(home: &str) -> InstalledAppsIndex {
     let mut index = InstalledAppsIndex {
         bundle_ids: HashSet::new(),
         normalized_names: HashSet::new(),
+        apps: Vec::new(),
     };
 
     for root in [
@@ -549,29 +635,75 @@ fn build_residual_candidate(
         return None;
     }
 
+    let (base_name, candidate_version_key) = extract_name_and_version(logical_name);
+    let base_normalized_name = normalize_app_name(&base_name);
+    let matching_installed_apps: Vec<&InstalledAppRecord> = installed_apps
+        .apps
+        .iter()
+        .filter(|app| {
+            (!base_normalized_name.is_empty() && app.base_normalized_name == base_normalized_name)
+                || app.normalized_name == normalized_name
+        })
+        .collect();
+
+    let mut is_old_version = false;
+    if !matching_installed_apps.is_empty() {
+        if candidate_version_key.is_none() {
+            return None;
+        }
+
+        let same_version_exists = matching_installed_apps.iter().any(|app| {
+            app.normalized_name == normalized_name
+                || app.version_key.as_ref() == candidate_version_key.as_ref()
+        });
+
+        if same_version_exists {
+            return None;
+        }
+
+        is_old_version = true;
+    }
+
     let size = get_path_size(path);
     if size < MIN_APP_RESIDUAL_ITEM_SIZE {
         return None;
     }
 
-    let app_name = bundle_identifier
-        .as_deref()
-        .map(guess_app_name_from_identifier)
-        .unwrap_or_else(|| prettify_label(logical_name));
+    let app_name = if is_old_version && !base_name.is_empty() {
+        prettify_label(&base_name)
+    } else {
+        bundle_identifier
+            .as_deref()
+            .map(guess_app_name_from_identifier)
+            .unwrap_or_else(|| prettify_label(logical_name))
+    };
+
+    let category_label = if is_old_version {
+        format!("{}（旧版本）", category)
+    } else {
+        category.to_string()
+    };
 
     Some(AppResidualCandidate {
         app_id: bundle_identifier
             .as_ref()
             .map(|identifier| identifier.to_lowercase())
-            .unwrap_or(normalized_name),
+            .unwrap_or_else(|| {
+                if is_old_version && !base_normalized_name.is_empty() {
+                    base_normalized_name.clone()
+                } else {
+                    normalized_name.clone()
+                }
+            }),
         app_name,
         identifier: bundle_identifier,
         source_key: source_key.to_string(),
         item: UninstalledAppJunkItem {
             path: path.to_string_lossy().to_string(),
             size,
-            category: category.to_string(),
+            category: category_label,
         },
+        is_old_version,
     })
 }
 
@@ -637,6 +769,7 @@ async fn scan_uninstalled_app_junk() -> Result<UninstalledAppJunkScanResult, Str
                     total_size: 0,
                     source_keys: HashSet::new(),
                     items: Vec::new(),
+                    has_old_version_items: false,
                 });
 
             if group.identifier.is_none() && candidate.identifier.is_some() {
@@ -653,13 +786,15 @@ async fn scan_uninstalled_app_junk() -> Result<UninstalledAppJunkScanResult, Str
             group.total_size += candidate.item.size;
             group.source_keys.insert(candidate.source_key.clone());
             group.items.push(candidate.item);
+            group.has_old_version_items |= candidate.is_old_version;
         }
     }
 
     let mut apps: Vec<UninstalledAppJunkApp> = grouped_apps
         .into_values()
         .filter(|group| {
-            group.identifier.is_some()
+            group.has_old_version_items
+                || group.identifier.is_some()
                 || group.source_keys.len() >= 2
                 || group.total_size >= MIN_APP_RESIDUAL_GROUP_SIZE
         })
